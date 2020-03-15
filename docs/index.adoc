@@ -1,4 +1,4 @@
-= Xenon, a Native C-like Language
+= Xenon, a Native C-Like Language
 
 Xenon is a language that is similar to C.
 It compiles to basic assembly, which can be assembled to x64 instructions.
