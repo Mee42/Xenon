@@ -1,0 +1,93 @@
+= Xenon, a Native C-like Language
+
+Xenon is a language that is similar to C.
+It compiles to basic assembly, which can be assembled to x64 instructions.
+
+Code will run through a pipeline consisting of a:
+
+[horizontal]
+
+Preprocessor:: Think ``#define``s in C - runs before any lexing/parsing.
+Lexer:: Take the source and create a list of tokens.
+Parser Pass 1:: Parses an `InitialAST` that has everything but function bodies parsed.
+Parser Pass 2:: Take the `InitialAST` and assemble a full AST. This also does type checking.
+Optimizer:: Optimize said AST to avoid doing dumb stuff.
+Assembler:: Tke the AST and turn it into assembly.
+Nasm Assembler:: Take an asm file and turns it into x64.
+
+Of all of these, the only one which will not be custom-made is the assembler.
+This is a design choice made to make this language more debuggable, really.
+
+Different "pipes" will be kept in different packages: `xpp` (the preprocessor) ,`lexer`, `parser`, `opt` (optimizer), and `asm` (the assembler)
+
+== Language Design
+
+This language will look similar to C.
+At the top level, there will be a list functions. Functions look like this:
+
+[source,c]
+----
+function @pure get(@foo @bar unsigned int i, int* array) int {
+    return *(array + i);
+}
+----
+
+Here are how functions are defined:
+
+. Functions are always started with the keyword `function`.
+. All function attributes (attributes are prefixed with an `@`).
+. The name of the function, which must start with a lowercase letter.
+. A list of arguments. Each has:
+.. A list of argument attributes (same as function attributes)
+.. A list of one-or-more _type identifiers_. In this example, it is `unsigned int`
+.. The name of the argument
+. The return type of the function. this can, again, be one-or-more type identifiers
+. A block of code in brackets.
+
+=== Expressions
+
+NOTE: Blocks are *not* expressions. This is a choice made to reduce complexity.
+
+Expressions follow a couple simple rules.
+
+* Any variable identifier,
+ie `foo`
+* Any operator between two expressions,
+ie `foo + bar`
+** This includes the `.` operator, which is for member values
+* Parentheses with optional expressions comma-delimited in them,
+ie `foo()`, `bar(a, b, c)`
+* A asterisk before any expression that has a pointer type,
+ie `\*array`, `*(array + 7)`. This is a dereference
+
+Assignments are statements, not expressions.
+Assignments can be one of these:
+[source, c]
+----
+val a = foo // this is immutable
+var b = foo // this is mutable
+a = bar     // this is not allowed, as a is immutable
+b = bar     // this is allowed, as b is mutable
+----
+When something is mutable, it means the local variable can be changed.
+The value at the pointer has no such guarantee.
+
+If you wish to set something at the address of a pointer, you must use the `*` operator.
+[source, c]
+----
+*array = 2
+*(array + 1) = 3
+**array = 5
+----
+All assignments must either be to a direct variable or a dereferenced pointer expression.
+
+All complex assignments are parsed like:
+[source, c]
+----
+*foo() = bar()
+// turns into
+val _ptr_temp = foo()
+*_ptr_temp = bar()
+----
+NOTE: assignments are *not* expressions, meaning that `if(a = 7)` will not compile.
+
