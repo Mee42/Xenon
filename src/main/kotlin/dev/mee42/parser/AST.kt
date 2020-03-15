@@ -31,8 +31,8 @@ object NoOpStatement: Statement() {
 }
 
 sealed class Expression
-data class VariableAccessExpression(val variableName: String, val type: Type): Statement()
-
+data class VariableAccessExpression(val variableName: String, val type: Type): Expression()
+data class DereferencePointerExpression(val pointerExpression: Expression): Expression()
 
 
 
