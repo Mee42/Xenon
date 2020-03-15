@@ -15,8 +15,9 @@ Optimizer:: Optimize said AST to avoid doing dumb stuff.
 Assembler:: Tke the AST and turn it into assembly.
 Nasm Assembler:: Take an asm file and turns it into x64.
 
-Of all of these, the only one which will not be custom-made is the assembler.
-This is a design choice made to make this language more debuggable, really.
+Of all of these, the only one which will not be custom-made is the nasm assembler.
+This is a design choice made to make this language more debuggable,
+and could change once the project is more developed.
 
 Different "pipes" will be kept in different packages: `xpp` (the preprocessor) ,`lexer`, `parser`, `opt` (optimizer), and `asm` (the assembler)
 
