@@ -9,10 +9,12 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
     val text = """
-function @baz add(@foo @bar unsigned int a, unsigned int b) void { a b c }
+function pow2(int a) int {
+    return a + a
+}
     """.trimIndent()
     try {
-        println(compile(text))
+        println("\n-- asm --\n" + compile(text))
     } catch (e: CompilerException) {
         System.err.println("${e.javaClass.name}: ${e.message}\n\n\n")
         e.printStackTrace()

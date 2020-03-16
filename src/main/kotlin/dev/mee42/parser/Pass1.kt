@@ -47,8 +47,7 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
     val closeParentheses = tokens.remove().checkType(TokenType.CLOSE_PARENTHESES, "illegal state")
     val returnType = parseType(tokens.removeWhile { it.type != TokenType.OPEN_BRACKET }, closeParentheses)
 
-    var nestedCount = 0
-    val block: List<Token> = tokens.takeAllNestedIn(beginning = TokenType.OPEN_BRACKET, end = TokenType.CLOSE_BRACKET)
+    val block: List<Token> = tokens.takeAllNestedIn(beginning = TokenType.OPEN_BRACKET, end = TokenType.CLOSE_BRACKET, includeSurrounding = true)
     // block contains the {} but they are removed from the queue
     return InitialFunction(name = functionName,
         arguments = parsedArguments,

@@ -18,6 +18,7 @@ open class TokenException(lineContent: String, line: Int, index: Int, message: S
 
 enum class TokenType(val regex: Regex) {
     FUNCTION_KEYWORD("function"),
+    RETURN_KEYWORD("return"),
     IF_KEYWORD("if"),
     WHILE_KEYWORD("while"),
     OPEN_PARENTHESES("("),
