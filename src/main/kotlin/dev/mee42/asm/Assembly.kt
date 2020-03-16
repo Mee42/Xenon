@@ -31,6 +31,8 @@ sealed class AssemblyInstruction(private val str: String) {
     object Ret: AssemblyInstruction("    ret")
     class Mov(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    mov $reg1, $reg2")
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    add $reg1, $reg2")
+    class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    sub $reg1, $reg2")
+
     class Label(name: String): AssemblyInstruction("$name:")
     class Jump(to: String): AssemblyInstruction("    jmp $to")
     class Comment(content: String): AssemblyInstruction("    ; $content")

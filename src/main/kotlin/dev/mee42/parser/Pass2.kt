@@ -59,10 +59,10 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             when(next.type) {
                 OPERATOR -> {
                     tokens.remove() // consume it
-                    if(next.content == "+"){
-                        AddExpression(firstAsLocalVariable, parseExpression(tokens, initialAST, localVariables))
-                    } else {
-                        TODO("only addition supported right now")
+                    when (next.content) {
+                        "+" -> AddExpression(firstAsLocalVariable, parseExpression(tokens, initialAST, localVariables))
+                        "-" -> SubExpression(firstAsLocalVariable, parseExpression(tokens, initialAST, localVariables))
+                        else -> TODO("only addition supported right now")
                     }
                 }
                 OPEN_PARENTHESES -> TODO("function calls not supported yet")

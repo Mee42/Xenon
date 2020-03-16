@@ -11,12 +11,10 @@ private class Variable(val name: String, val type: Type, val register: Register,
 private fun assemble(function: Function): List<AssemblyInstruction> {
     val list = mutableListOf<AssemblyInstruction>()
 
-
-
     // these are the registers needed to call this function:
-    if(function.arguments.size > 2) error("can't support more then 2 arguments to a function")
+    if(function.arguments.size > 2) error("can't support more then 2 arguments to a function as of right now, lol")
     val variableBindings = mutableListOf<Variable>()
-    val returnRegister = Register.values().first { it.size == function.returnType.type.registerSize }
+    val returnRegister = Register.values().first { it.size == function.returnType.size }
     variableBindings.add(Variable("_ret", function.returnType, returnRegister, true))
 
     list.add(AssemblyInstruction.CommentedLine(
@@ -24,7 +22,7 @@ private fun assemble(function: Function): List<AssemblyInstruction> {
         comment = "return value in register $returnRegister"))
 
     function.arguments.forEachIndexed { i, it ->
-        val size = it.type.type.registerSize
+        val size = it.type.size
         val register = Register.values().firstOrNull { reg ->
             reg.size == size && variableBindings.none { v -> v.register == reg }
         } ?: error("out of registers")

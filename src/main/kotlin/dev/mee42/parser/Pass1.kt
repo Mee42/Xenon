@@ -81,6 +81,6 @@ private fun parseType(tokens: List<Token>, nearbyToken: Token? = null): Type {
             list.size == identifiers.size && list.withIndex().all { (i, v) -> identifiers[i].content == v }
         }
     } ?: throw ParseException("can't find type \"${identifiers.fold(""){a,b -> "$a ${b.content}"}}\"", identifiers[0])
-    return Type(type, attributes)
+    return BaseType(type, attributes)
 }
 

@@ -9,8 +9,8 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
     val text = """
-function pow2(int a) int {
-    return a + a
+function pow2(int32 a, int32 b) int16 {
+    return a + b
 }
     """.trimIndent()
     try {

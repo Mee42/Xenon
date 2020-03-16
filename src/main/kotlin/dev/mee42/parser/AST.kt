@@ -3,6 +3,7 @@ package dev.mee42.parser
 import dev.mee42.asm.RegisterSize
 import dev.mee42.asm.RegisterSize.*
 import dev.mee42.lexer.Token
+import java.awt.Point
 
 
 enum class TypeEnum(val registerSize: RegisterSize, val names: List<List<String>>) {
@@ -18,9 +19,10 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<List<String>
     VOID(BIT8, "void");
     constructor(size: RegisterSize, vararg names: String): this(size, names.map { it.split(" ") })
 }
+sealed class Type(val size: RegisterSize)
 
-data class Type(val type: TypeEnum, val attributes: List<String>)
-
+data class BaseType(val type: TypeEnum, val attributes: List<String>): Type(type.registerSize)
+data class PointerType(val type: Type): Type(BIT64)
 
 
 sealed class Statement
@@ -31,10 +33,24 @@ object NoOpStatement: Statement() {
 }
 
 
-sealed class Expression
-data class VariableAccessExpression(val variableName: String, val type: Type): Expression()
-data class DereferencePointerExpression(val pointerExpression: Expression): Expression()
-data class AddExpression(val var1: Expression, val var2: Expression): Expression()
+sealed class Expression(val type: Type)
+class VariableAccessExpression(val variableName: String, type: Type): Expression(type)
+class DereferencePointerExpression(pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
+
+open class MathExpression(val var1: Expression, val var2: Expression): Expression(var1.type) {
+        init {
+        if(var1.type is PointerType || var2.type is PointerType) {
+            error("adding to pointer types not supported as of right now")
+        }
+        if((var1.type as BaseType).type.registerSize != (var2.type as BaseType).type.registerSize) {
+            error("mis-matched sizes")
+        }
+    }
+}
+
+class AddExpression(var1: Expression, var2: Expression): MathExpression(var1, var2)
+class SubExpression(var1: Expression, var2: Expression): MathExpression(var1, var2)
+
 
 
 
