@@ -130,10 +130,27 @@ Pointers are always 64 bits,
 where as smaller values can be stored in bigger registers and used properly.
 
 **Concept of ownership:** The function calling can depend on all registers (except `A`) staying the same.
-
 The function being called needs to push all of the registers that it manipulates to the stack,
 and then pop the same registers in order the same order before returning from the function.
-__
+This does not include argument parameters - ie, this is valid:
+[source, asm]
+----
+quadruple:
+    add rbx, rbx
+    add rbx, rbx
+    mov rax, rbx
+    ret
+----
+This is not valid:
+[source, asm]
+----
+func:
+    mov r10, rbx
+    add r10, rbx
+    add r10, rbx
+    mov rax, r10
+    ret
+----
 
 Because this compiles to assembly, the compiler can output relevant context as comments in the assembly code,
 which helps debugging.
