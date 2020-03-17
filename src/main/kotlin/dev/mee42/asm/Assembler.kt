@@ -6,26 +6,24 @@ import dev.mee42.parser.Function
 fun assemble(ast: AST):List<AssemblyInstruction> {
     return ast.functions.map(::assemble).flatten()
 }
-private class Variable(val name: String, val type: Type, val register: Register, isFinal: Boolean)
+private class Variable(val name: String, val type: Type, val register: SizedRegister, isFinal: Boolean)
 
 private fun assemble(function: Function): List<AssemblyInstruction> {
     val list = mutableListOf<AssemblyInstruction>()
 
     // these are the registers needed to call this function:
-    if(function.arguments.size > 2) error("can't support more then 2 arguments to a function as of right now, lol")
+    if(function.arguments.size > 2) error("can't support more then 5 arguments to a function as of right now, lol")
     val variableBindings = mutableListOf<Variable>()
-    val returnRegister = Register.values().first { it.size == function.returnType.size }
+    val returnRegister = SizedRegister(function.returnType.size, Register.A)
     variableBindings.add(Variable("_ret", function.returnType, returnRegister, true))
 
     list.add(AssemblyInstruction.CommentedLine(
         line = AssemblyInstruction.Label(function.name),
         comment = "return value in register $returnRegister"))
-
+    // so the argument registers are
     function.arguments.forEachIndexed { i, it ->
         val size = it.type.size
-        val register = Register.values().firstOrNull { reg ->
-            reg.size == size && variableBindings.none { v -> v.register == reg }
-        } ?: error("out of registers")
+        val register = SizedRegister(size, Register.argumentRegisters[i])
         variableBindings.add(Variable(it.name, it.type, register, true))
         list.add(AssemblyInstruction.Comment("argument $i (${it.name}) in register $register"))
     }

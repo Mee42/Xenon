@@ -103,6 +103,33 @@ Assignments are _not_ expressions, meaning that `a = b = 7` will not compile.
 
 Identifiers that start with `_` are inserted by the compiler and are not allowed in the source code.
 
+== Compiling to Assembly
+
+Each function is defined with a label equal to it's name.
+Here is an example function:
+
+[source, c]
+----
+function double(int64 x) int64 {
+    return x + x;
+}
+----
+This will compile to the following assembly:
+[source, asm]
+----
+double: ; return value in rax
+    ; argument 0 (x) in register rbx
+    add rbx, rbx
+    mov rax, rbx
+    ret
+----
+arguments will be past in these registers, in order: `rbx`, `rcx`, `rdx`, `r8`, `r9`
+Only 5 arguments are supported at this time.
+Return value is stored in `rax`.
+Pointers are always 64 bits,
+where as smaller values can be stored in bigger registers and used properly.
+
+
 == Current Issues
 
 There are many things that you should be able to do that will crash with a NotImplementedException.
@@ -110,5 +137,3 @@ Because writing these down will lead to them being quickly outdated,
 I'm only going to document shortcomings that will *not* crash the compiler.
 
 * Functions are not checked to make sure they return, nor is the return type checked
-* AL is used as a 8 bit register but it does not reserve the AX register, which it is a part of.
-This could lead to a lot of memory-overwrite issues

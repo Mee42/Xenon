@@ -1,0 +1,7 @@
+= Resources
+
+These are things I found helpful while creating this language,
+and may want to reference back later.
+
+* https://www.cplusplus.com/reference/cstdio/printf/[The ``printf`` documentation]
+* https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/x64-architecture[Microsoft x64 Architecture guide]

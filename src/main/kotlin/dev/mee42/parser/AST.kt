@@ -6,18 +6,18 @@ import dev.mee42.lexer.Token
 import java.awt.Point
 
 
-enum class TypeEnum(val registerSize: RegisterSize, val names: List<List<String>>) {
+enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>) {
     INT8(BIT8, "int8","byte"),
     INT16(BIT16, "int16","short"),
     INT32(BIT32, "int32","int"),
     INT64(BIT64, "int64","long"),
-    UINT8(BIT8,"uint8","unsigned byte"),
-    UINT16(BIT16, "uint16","unsigned short"),
-    UINT32(BIT32, "uint32","unsigned int"),
-    UINT64(BIT64, "uint64","unsigned long"),
+    UINT8(BIT8,"uint8","byte"),
+    UINT16(BIT16, "uint16","short"),
+    UINT32(BIT32, "uint32","int"),
+    UINT64(BIT64, "uint64","long")
+    ;
 
-    VOID(BIT8, "void");
-    constructor(size: RegisterSize, vararg names: String): this(size, names.map { it.split(" ") })
+    constructor(size: RegisterSize, vararg names: String): this(size, names.toList())
 }
 sealed class Type(val size: RegisterSize)
 
@@ -38,7 +38,7 @@ class VariableAccessExpression(val variableName: String, type: Type): Expression
 class DereferencePointerExpression(pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
 
 open class MathExpression(val var1: Expression, val var2: Expression): Expression(var1.type) {
-        init {
+    init {
         if(var1.type is PointerType || var2.type is PointerType) {
             error("adding to pointer types not supported as of right now")
         }
@@ -50,9 +50,6 @@ open class MathExpression(val var1: Expression, val var2: Expression): Expressio
 
 class AddExpression(var1: Expression, var2: Expression): MathExpression(var1, var2)
 class SubExpression(var1: Expression, var2: Expression): MathExpression(var1, var2)
-
-
-
 
 data class Argument(val name: String, val type: Type)
 

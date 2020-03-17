@@ -64,23 +64,17 @@ private fun parseArgument(tokens: List<Token>): Argument {
         type = parseType(tokens.subList(0, tokens.size - 1), identifier))
 }
 
-private fun parseType(tokens: List<Token>, nearbyToken: Token? = null): Type {
+private fun parseType(tokens: List<Token>, nearbyToken: Token): Type {
+    if(tokens.isEmpty()) throw ParseException("Can't find type", nearbyToken)
     val attributes = tokens.takeWhile { it.type == TokenType.ATTRIBUTE }.map(Token::content)
-    val identifiers = tokens.subList(attributes.size, tokens.size)
-    if(identifiers.isEmpty()) {
-        throw if(nearbyToken == null) ParseException("can't have a type with no identifiers")
-        else                    ParseException("can't have a type with no identifiers",nearbyToken)
-    }
+    val identifier = tokens.last().checkType(TokenType.IDENTIFIER,"type identifier must be an identifier")
 
-    identifiers.forEach {
-        it.checkType(TokenType.IDENTIFIER, "type identifiers must be identifiers. Attributes must come before any type identifiers")
-    }
     // let's just find one - worry about structs later
     val type: TypeEnum = TypeEnum.values().firstOrNull {
-        it.names.any { list ->
-            list.size == identifiers.size && list.withIndex().all { (i, v) -> identifiers[i].content == v }
+        it.names.any { typeIdentifier ->
+            typeIdentifier == identifier.content
         }
-    } ?: throw ParseException("can't find type \"${identifiers.fold(""){a,b -> "$a ${b.content}"}}\"", identifiers[0])
+    } ?: throw ParseException("can't find type \"$identifier\"", identifier)
     return BaseType(type, attributes)
 }
 

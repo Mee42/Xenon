@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.10">
-<title>Xenon, a Native C-Like Language</title>
+<title>Resources</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
 /* Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
@@ -438,293 +438,27 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="article">
 <div id="header">
-<h1>Xenon, a Native C-Like Language</h1>
+<h1>Resources</h1>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
 <div class="paragraph">
-<p>Xenon is a language that is similar to C.
-It compiles to basic assembly, which can be assembled to x64 instructions.</p>
-</div>
-<div class="paragraph">
-<p>Code will run through a pipeline consisting of a:</p>
-</div>
-<div class="hdlist">
-<table>
-<tr>
-<td class="hdlist1">
-Preprocessor
-</td>
-<td class="hdlist2">
-<p>Think <code>#define</code>s in C - runs before any lexing/parsing.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Lexer
-</td>
-<td class="hdlist2">
-<p>Take the source and create a list of tokens.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Parser Pass 1
-</td>
-<td class="hdlist2">
-<p>Parses an <code>InitialAST</code> that has everything but function bodies parsed.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Parser Pass 2
-</td>
-<td class="hdlist2">
-<p>Take the <code>InitialAST</code> and assemble a full AST. This also does type checking.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Optimizer
-</td>
-<td class="hdlist2">
-<p>Optimize said AST to avoid doing dumb stuff.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Assembler
-</td>
-<td class="hdlist2">
-<p>Tke the AST and turn it into assembly.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Nasm Assembler
-</td>
-<td class="hdlist2">
-<p>Take an asm file and turns it into x64.</p>
-</td>
-</tr>
-</table>
-</div>
-<div class="paragraph">
-<p>Of all of these, the only one which will not be custom-made is the nasm assembler.
-This is a design choice made to make this language more debuggable,
-and could change once the project is more developed.</p>
-</div>
-<div class="paragraph">
-<p>Different "pipes" will be kept in different packages: <code>xpp</code> (the preprocessor) ,<code>lexer</code>, <code>parser</code>, <code>opt</code> (optimizer), and <code>asm</code> (the assembler)</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_language_design">Language Design</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>This language will look similar to C.
-At the top level, there will be a list functions. Functions look like this:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-c" data-lang="c">function @pure get(@foo @bar unsigned int i, int* array) int {
-    return *(array + i);
-}</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Here are how functions are defined:</p>
-</div>
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p>Functions are always started with the keyword <code>function</code>.</p>
-</li>
-<li>
-<p>All function attributes (attributes are prefixed with an <code>@</code>).</p>
-</li>
-<li>
-<p>The name of the function, which must start with a lowercase letter.</p>
-</li>
-<li>
-<p>A list of arguments. Each has:</p>
-<div class="olist loweralpha">
-<ol class="loweralpha" type="a">
-<li>
-<p>A list of argument attributes (same as function attributes)</p>
-</li>
-<li>
-<p>A list of one-or-more <em>type identifiers</em>. In this example, it is <code>unsigned int</code></p>
-</li>
-<li>
-<p>The name of the argument</p>
-</li>
-</ol>
-</div>
-</li>
-<li>
-<p>The return type of the function. this can, again, be one-or-more type identifiers</p>
-</li>
-<li>
-<p>A block of code in brackets.</p>
-</li>
-</ol>
-</div>
-<div class="sect2">
-<h3 id="_expressions">Expressions</h3>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<div class="title">Note</div>
-</td>
-<td class="content">
-Blocks are <em>not</em> expressions. This is a choice made to reduce complexity.
-</td>
-</tr>
-</table>
-</div>
-<div class="paragraph">
-<p>Expressions follow a couple simple rules.</p>
+<p>These are things I found helpful while creating this language,
+and may want to reference back later.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Any variable identifier,
-ie <code>foo</code></p>
+<p><a href="https://www.cplusplus.com/reference/cstdio/printf/">The <code>printf</code> documentation</a></p>
 </li>
 <li>
-<p>Any operator between two expressions,
-ie <code>foo + bar</code></p>
-<div class="ulist">
-<ul>
-<li>
-<p>This includes the <code>.</code> operator, which is for member values</p>
+<p><a href="https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/x64-architecture">Microsoft x64 Architecture guide</a></p>
 </li>
 </ul>
-</div>
-</li>
-<li>
-<p>Parentheses with optional expressions comma-delimited in them,
-ie <code>foo()</code>, <code>bar(a, b, c)</code></p>
-</li>
-<li>
-<p>A asterisk before any expression that has a pointer type,
-ie <code>*array</code>, <code>*(array + 7)</code>. This is a dereference</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>Assignments are statements, not expressions.
-Assignments can be one of these:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-c" data-lang="c">val a = foo // this is immutable
-var b = foo // this is mutable
-a = bar     // this is not allowed, as a is immutable
-b = bar     // this is allowed, as b is mutable</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>When something is mutable, it means the local variable can be changed.
-The value at the pointer has no such guarantee.</p>
-</div>
-<div class="paragraph">
-<p>If you wish to set something at the address of a pointer, you must use the <code>*</code> operator.</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-c" data-lang="c">*array = 2
-*(array + 1) = 3
-// if array is an int**
-**array = 5</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>All assignments must either be to a direct variable or a dereferenced pointer expression.</p>
-</div>
-<div class="paragraph">
-<p>All complex assignments are parsed like:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-c" data-lang="c">*foo() = bar()
-*baz() = boo()
-// turns into
-var _ptr_temp = foo()
-*_ptr_temp = bar()
-_ptr_temp = baz()
-*_ptr_temp = boo()</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Assignments are <em>not</em> expressions, meaning that <code>a = b = 7</code> will not compile.</p>
-</div>
-<div class="paragraph">
-<p>Identifiers that start with <code>_</code> are inserted by the compiler and are not allowed in the source code.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_compiling_to_assembly">Compiling to Assembly</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Each function is defined with a label equal to it&#8217;s name.
-Here is an example function:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-c" data-lang="c">function double(int64 x) int64 {
-    return x + x;
-}</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>This will compile to the following assembly:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-asm" data-lang="asm">double: ; return value in rax
-    ; argument 0 (x) in register rbx
-    add rbx, rbx
-    mov rax, rbx
-    ret</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>arguments will be past in these registers, in order: <code>rbx</code>, <code>rcx</code>, <code>rdx</code>, <code>r8</code>, <code>r9</code>
-Only 5 arguments are supported at this time.
-Return value is stored in <code>rax</code>.
-Pointers are always 64 bits,
-where as smaller values can be stored in bigger registers and used properly.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_current_issues">Current Issues</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>There are many things that you should be able to do that will crash with a NotImplementedException.
-Because writing these down will lead to them being quickly outdated,
-I&#8217;m only going to document shortcomings that will <strong>not</strong> crash the compiler.</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Functions are not checked to make sure they return, nor is the return type checked</p>
-</li>
-</ul>
-</div>
-</div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-03-17 12:22:10 -0400
+Last updated 2020-03-17 11:50:36 -0400
 </div>
 </div>
 </body>

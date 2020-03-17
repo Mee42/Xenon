@@ -7,22 +7,49 @@ enum class RegisterSize(val bytes: Int) {
     BIT64(8),
     BIT32(4),
     BIT16(2),
-    BIT8(1)
+    BIT8(1),
 }
 
-enum class Register(val size: RegisterSize) {
-    RAX(BIT64), RBX(BIT64), RCX(BIT64), RDX(BIT64),
-    EAX(BIT32), EBX(BIT32), ECX(BIT32), EDX(BIT32),
-    AX(BIT16),  BX(BIT16),  CX(BIT16),  DX(BIT16),
-    AL(BIT8),   BL(BIT8),   CL(BIT8),   DL(BIT8)
-    ;
+enum class Register(val bit64: String, val bit32: String, val bit16: String, val bit8: String) {
+    A("rax","eax","ax","al"),
+    B("rbx","ebx","bx","bl"),
+    C("rcx","ecx","cx","cl"),
+    D("rdx","edx","dx","dl"),
+    SI("rsi","esi","si","sil"),
+    DI("rdi","edi","di","dil"),
+    BP("rbp","ebp","bp","bpl"),
+    SP("rsp","esp","sp","spl"),
+    R8(8),
+    R9(9),
+    R10(10),
+    R11(11),
+    R12(12),
+    R13(13),
+    R14(14),
+    R15(15);
 
-    override fun toString() = name
+    constructor(i: Int): this("r$i","r${i}d","r${i}w","r${i}b")
+    companion object {
+        val argumentRegisters = listOf(B, C, D, R8, R9)
+    }
 }
 
-class AdvancedRegister(private val register: Register, private val isMemory: Boolean) {
+class SizedRegister(val size: RegisterSize, private val register: Register) {
+    override fun toString() = when(size) {
+        BIT64 -> register.bit64
+        BIT32 -> register.bit32
+        BIT16 -> register.bit16
+        BIT8 -> register.bit8
+    }
+
+}
+
+class AdvancedRegister(private val register: SizedRegister, private val isMemory: Boolean) {
     override fun toString(): String {
         return if(isMemory) "[$register]" else "$register"
+    }
+    init {
+        if(isMemory && register.size != RegisterSize.BIT64) error("all memory access must be 64-bit")
     }
 }
 
