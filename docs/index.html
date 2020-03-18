@@ -696,19 +696,40 @@ Here is an example function:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>arguments will be past in these registers, in order: <code>rbx</code>, <code>rcx</code>, <code>rdx</code>, <code>r8</code>, <code>r9</code>
-Only 5 arguments are supported at this time.
+<p>arguments will be past in these registers, in order: <code>rcx</code>, <code>rdx</code>, <code>r8</code>,and <code>r9</code>
+Only 4 arguments are supported at this time.
 Return value is stored in <code>rax</code>.
+The <code>rbx</code> register will be used as the "accumulator", being a shared bridging point between expression evaluation
 Pointers are always 64 bits,
 where as smaller values can be stored in bigger registers and used properly.</p>
 </div>
 <div class="paragraph">
-<p><strong>Concept of ownership:</strong> The function calling can depend on all registers (except <code>A</code>) staying the same.</p>
+<p><strong>Concept of ownership:</strong> The function calling can depend on all registers (except <code>A</code>) staying the same.
+The function being called needs to push all of the registers that it manipulates to the stack,
+and then pop the same registers in order the same order before returning from the function.
+This does not include argument parameters - ie, this is valid:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-asm" data-lang="asm">quadruple:
+    add rbx, rbx
+    add rbx, rbx
+    mov rax, rbx
+    ret</code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>The function being called needs to push all of the registers that it manipulates to the stack,
-and then pop the same registers in order the same order before returning from the function.
-__</p>
+<p>This is not valid:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-asm" data-lang="asm">func:
+    mov r10, rbx
+    add r10, rbx
+    add r10, rbx
+    mov rax, r10
+    ret</code></pre>
+</div>
 </div>
 <div class="paragraph">
 <p>Because this compiles to assembly, the compiler can output relevant context as comments in the assembly code,
@@ -738,7 +759,7 @@ I&#8217;m only going to document shortcomings that will <strong>not</strong> cra
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-03-17 12:52:57 -0400
+Last updated 2020-03-18 10:44:12 -0400
 </div>
 </div>
 </body>
