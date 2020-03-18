@@ -43,7 +43,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
         // so it's a variable access, and possibly has an operator after it
         // ex:
         return when(next.type) {
-            OPERATOR -> {
+            OPERATOR, ASTERISK -> {
                 tokens.remove() // consume it
                 val math = MathType.values().firstOrNull { it.symbol == next.content }
                     ?: throw ParseException("Can't deal with ${next.content} operator",next)
