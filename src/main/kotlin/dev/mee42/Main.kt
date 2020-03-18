@@ -8,9 +8,14 @@ open class CompilerException(message: String = ""): RuntimeException(message)
 class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
+//    val text = """
+//function poly(int a, int b, int c, int x) int {
+//    return (a * x * x) + (b * x) + c
+//}
+//    """.trimIndent()
     val text = """
-function double(int x) int {
-    return x + x;
+function deref(int***** a) int {
+    return *****a;
 }
     """.trimIndent()
     try {

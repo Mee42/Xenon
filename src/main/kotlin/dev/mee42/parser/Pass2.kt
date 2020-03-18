@@ -5,6 +5,7 @@ import dev.mee42.InternalCompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.lexer.TokenType.*
+import kotlin.math.exp
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
 
@@ -37,14 +38,34 @@ private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, l
 private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: InitialAST, localVariables: List<LocalVariable>): Expression {
     // okay, wonderful
     val first = tokens.remove()
+    fun checkForOperator(expression: Expression): Expression {
+        val next = tokens.peek() ?: return expression
+        // so it's a variable access, and possibly has an operator after it
+        // ex:
+        return when(next.type) {
+            OPERATOR -> {
+                tokens.remove() // consume it
+                val math = MathType.values().firstOrNull { it.symbol == next.content }
+                    ?: throw ParseException("Can't deal with ${next.content} operator",next)
+                MathExpression(expression, parseExpression(tokens, initialAST, localVariables),math)
+            }
+            OPEN_PARENTHESES -> TODO("function calls not supported yet")
+            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET -> expression
+            DOT -> TODO("member access not supported yet")
+            else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
+        }
+    }
     return when (first.type) {
         OPEN_PARENTHESES -> {
             val enclosed = parseExpression(tokens, initialAST, localVariables)
             tokens.remove().checkType(CLOSE_PARENTHESES, "expecting a closed parentheses")
-            enclosed
+            checkForOperator(enclosed)
         }
         ASTERISK -> {
             val dereferencedPointer = parseExpression(tokens, initialAST, localVariables)
+            if(dereferencedPointer.type !is PointerType) {
+                throw ParseException("Can't derefrence a non-pointer type " + dereferencedPointer.type, first)
+            }
             DereferencePointerExpression(dereferencedPointer)
         }
         IDENTIFIER -> {
@@ -52,24 +73,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 type = localVariables.firstOrNull { it.name == first.content }?.type
                     ?: throw ParseException("can't find variable ${first.content}", first)
             )
-
-            val next = tokens.peek() ?: return firstAsLocalVariable
-            // so it's a variable access, and possibly has an operator after it
-            // ex:
-            when(next.type) {
-                OPERATOR -> {
-                    tokens.remove() // consume it
-                    when (next.content) {
-                        "+" -> AddExpression(firstAsLocalVariable, parseExpression(tokens, initialAST, localVariables))
-                        "-" -> SubExpression(firstAsLocalVariable, parseExpression(tokens, initialAST, localVariables))
-                        else -> TODO("only addition supported right now")
-                    }
-                }
-                OPEN_PARENTHESES -> TODO("function calls not supported yet")
-                CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET -> firstAsLocalVariable
-                DOT -> TODO("member access not supported yet")
-                else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
-            }
+            checkForOperator(firstAsLocalVariable)
         }
         else -> TODO("can't support expressions that start with type ${first.type}")
     }
@@ -89,7 +93,7 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
             val value = parseExpression(tokens, initialAST, localVariables)
             return ReturnStatement(value)
         }
-        else -> TODO("can't support statements that start with ${firstToken.content}")
+        else -> throw ParseException("can't support statements that start with ${firstToken.content}", firstToken)
     }
 }
 

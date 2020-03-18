@@ -4,24 +4,30 @@ section .text
     global main
 
 main:
-    mov ebx, 1075
-    call println
-    call double
+    mov ebx7
+    mov ecx, 107
+    call divide
     mov ebx, eax
     call println
     ret
 
-double: ; return value in register eax
-    ; argument 0 (x) in register ebx
-    push rcx
+divide: ; return value in register eax
+    ; argument 0 (a) in register ebx
+    ; argument 1 (b) in register ecx
     mov eax, ebx
-    push rax
-    mov eax, ebx
-    pop rcx
-    add eax, ecx
-    pop rcx
-    mov eax, eax
+    push rbx
+    mov ebx, eax
+    mov eax, ecx
+    xor eax, ebx
+    xor ebx, eax
+    xor eax, ebx
+    push rdx
+    xor rdx, rdx
+    div ebx
+    pop rdx
+    pop rbx
     ret
+
 
 println: ; function println(int64 i)
           ; returns the output of printf

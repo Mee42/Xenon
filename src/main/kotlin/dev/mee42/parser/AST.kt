@@ -22,7 +22,7 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>) {
 }
 sealed class Type(val size: RegisterSize)
 
-data class BaseType(val type: TypeEnum, val attributes: List<String>): Type(type.registerSize)
+data class BaseType(val type: TypeEnum): Type(type.registerSize)
 data class PointerType(val type: Type): Type(BIT64)
 
 object DynamicType: Type(BIT64)
@@ -41,20 +41,14 @@ class VariableAccessExpression(val variableName: String, type: Type): Expression
         return "VARIABLE($variableName)"
     }
 }
-class DereferencePointerExpression(pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
+class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
 
+enum class MathType(val symbol: String) {
+    ADD("+"), SUB("-"), MULT("*"), DIV("/")
+    ;
 
-data class AddExpression(val var1: Expression,val var2: Expression): Expression(var1.type) {
-    init {
-        if(var1.type is PointerType || var2.type is PointerType) {
-            error("adding to pointer types not supported as of right now")
-        }
-        if((var1.type as BaseType).type.registerSize != (var2.type as BaseType).type.registerSize) {
-            error("mis-matched sizes")
-        }
-    }
 }
-data class SubExpression(val var1: Expression,val var2: Expression): Expression(var1.type) {
+data class MathExpression(val var1: Expression, val var2: Expression, val mathType: MathType): Expression(var1.type) {
     init {
         if(var1.type is PointerType || var2.type is PointerType) {
             error("adding to pointer types not supported as of right now")

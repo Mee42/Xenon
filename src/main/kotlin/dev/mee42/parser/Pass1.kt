@@ -22,7 +22,7 @@ fun parsePass1(tokens: List<Token>): InitialAST {
 }
 
 
-// function @attributes @foo @pure @const foo(unsigned int a, int b, int c) int { list; of; expressions; }
+// function @attributes @foo @pure @const foo(int* a, int b, int c) int { list; of; expressions; }
 private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFunction {
     // we already consumer the function keyword, lol
     // lets take all the attributes
@@ -30,6 +30,7 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
 
     val functionName = tokens.remove()
         .checkType(TokenType.IDENTIFIER, "function name must be an identifier").content
+
     val openParentheses =tokens.remove().checkType(TokenType.OPEN_PARENTHESES, "function identifier must be followed by a parentheses")
 
     val arguments = tokens.removeWhile { it.type != TokenType.CLOSE_PARENTHESES }
@@ -58,6 +59,7 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
 
 private fun parseArgument(tokens: List<Token>): Argument {
     // ALL TOKENS MUST BE IDENTIFIERS
+    if(tokens.isEmpty()) error("whatT")
     if(tokens.size == 1) throw ParseException("missing type", tokens[0])
     val identifier = tokens.last()
     return Argument(name = identifier.checkType(TokenType.IDENTIFIER,"argument name must be an identifier").content,
@@ -66,15 +68,15 @@ private fun parseArgument(tokens: List<Token>): Argument {
 
 private fun parseType(tokens: List<Token>, nearbyToken: Token): Type {
     if(tokens.isEmpty()) throw ParseException("Can't find type", nearbyToken)
-    val attributes = tokens.takeWhile { it.type == TokenType.ATTRIBUTE }.map(Token::content)
-    val identifier = tokens.last().checkType(TokenType.IDENTIFIER,"type identifier must be an identifier")
-
-    // let's just find one - worry about structs later
+    if(tokens.last().type == TokenType.ASTERISK) {
+        return PointerType(parseType(tokens.dropLast(1), tokens.last()))
+    }
+    if(tokens.size > 1) throw ParseException("idk what you want, crashing", nearbyToken)
+    val identifier = tokens[0]
     val type: TypeEnum = TypeEnum.values().firstOrNull {
         it.names.any { typeIdentifier ->
             typeIdentifier == identifier.content
         }
     } ?: throw ParseException("can't find type \"$identifier\"", identifier)
-    return BaseType(type, attributes)
+    return BaseType(type)
 }
-

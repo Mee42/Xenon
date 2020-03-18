@@ -57,11 +57,16 @@ sealed class AssemblyInstruction(private val str: String) {
     class Call(labelName: String): AssemblyInstruction("    call $labelName")
     object Ret: AssemblyInstruction("    ret")
     class Mov(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    mov $reg1, $reg2")
+
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    add $reg1, $reg2")
     class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    sub $reg1, $reg2")
+    class Mul(reg1: AdvancedRegister): AssemblyInstruction("    mul $reg1")
+    class Div(reg1: AdvancedRegister): AssemblyInstruction("    div $reg1")
 
     class Push(register: Register): AssemblyInstruction("    push ${SizedRegister(BIT64, register)}")
     class Pop(register: Register): AssemblyInstruction("    pop ${SizedRegister(BIT64, register)}")
+
+    class Xor(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    xor $reg1, $reg2")
 
     class Label(name: String): AssemblyInstruction("$name:")
     class Jump(to: String): AssemblyInstruction("    jmp $to")

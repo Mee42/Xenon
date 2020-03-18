@@ -2,6 +2,7 @@ package dev.mee42.asm
 
 import dev.mee42.parser.*
 import dev.mee42.parser.Function
+import kotlin.math.exp
 
 fun assemble(ast: AST):List<AssemblyInstruction> {
     return ast.functions.map { assemble(it, ast) }.flatten()
@@ -13,7 +14,7 @@ private fun assemble(function: Function, ast: AST): List<AssemblyInstruction> {
     return buildList {
 
         // these are the registers needed to call this function:
-        if(function.arguments.size > 2) error("can't support more then 5 arguments to a function as of right now, lol")
+        if(function.arguments.size > Register.argumentRegisters.size) error("can't support more then ${Register.argumentRegisters.size} arguments to a function as of right now, lol")
         val variableBindings = mutableListOf<Variable>()
         val returnRegister = SizedRegister(function.returnType.size, Register.A)
         val accumulatorRegister = returnRegister.register
@@ -55,28 +56,92 @@ private fun assemble(function: Function, ast: AST): List<AssemblyInstruction> {
 // - the stack is in the same state it entered in
 private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: Expression, accumulatorRegister: Register): List<AssemblyInstruction> {
     return when(expression) {
-        is AddExpression -> {
+        is MathExpression -> {
             // alright, here's the real test
             // reserve a free register
-            buildList {
-                val (newBindings, reservedRegister) = variableBindings.reserveOne(expression.type)
-                this += AssemblyInstruction.Push(reservedRegister.register)
+            when (expression.mathType) {
+                in listOf(MathType.ADD, MathType.SUB) -> {
+                    buildList {
+                        val (newBindings, reservedRegister) = variableBindings.reserveOne(expression.type)
+                        this += AssemblyInstruction.Push(reservedRegister.register)
 
-                this += assembleExpression(newBindings, ast, expression.var1, accumulatorRegister)
-                this += AssemblyInstruction.Push(accumulatorRegister)
+                        this += assembleExpression(newBindings, ast, expression.var1, accumulatorRegister)
+                        this += AssemblyInstruction.Push(accumulatorRegister)
 
-                this += assembleExpression(newBindings, ast, expression.var2, accumulatorRegister)
-                this += AssemblyInstruction.Pop(reservedRegister.register)
+                        this += assembleExpression(newBindings, ast, expression.var2, accumulatorRegister)
+                        this += AssemblyInstruction.Pop(reservedRegister.register)
 
-                this += AssemblyInstruction.Add(
-                    reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
-                    reg2 = reservedRegister.advanced()
-                )
+                        this += when (expression.mathType) {
+                            MathType.ADD -> AssemblyInstruction::Add
+                            MathType.SUB -> AssemblyInstruction::Sub
+                            else -> error("internal error")
+                        }(
+                            SizedRegister(expression.type.size, accumulatorRegister).advanced(),
+                            reservedRegister.advanced()
+                        )
 
-                this += AssemblyInstruction.Pop(reservedRegister.register)
-            }
+                        this += AssemblyInstruction.Pop(reservedRegister.register)
+                    }
+                }
+                MathType.MULT -> {
+                    buildList {
+                        if(accumulatorRegister != Register.A) error("need special code to deal with this")
+                        this += assembleExpression(variableBindings, ast, expression.var1, accumulatorRegister)
+                        // we need to use B as a temporary variable
+                        this += AssemblyInstruction.Push(Register.B)
+                        // move A to B
+                        this += AssemblyInstruction.Mov(
+                            reg1 = SizedRegister(expression.type.size, Register.B).advanced(),
+                            reg2 = SizedRegister(expression.type.size, accumulatorRegister).advanced()
+                        )
+                        this += assembleExpression(variableBindings, ast, expression.var2, accumulatorRegister)
+                        // run the math thing
+                        this += AssemblyInstruction.Mul(SizedRegister(expression.type.size, Register.B).advanced())
+                        this += AssemblyInstruction.Pop(Register.B)
+                    }
+                }
+                MathType.DIV -> {
+                    // apparently div needs some extra treatment
+                    buildList {
+                        if(accumulatorRegister != Register.A) error("need special code to deal with this")
+                        this += assembleExpression(variableBindings, ast, expression.var1, accumulatorRegister)
+                        // we need to use B as a temporary variable
+                        this += AssemblyInstruction.Push(Register.B)
+                        // move A to B
+                        this += AssemblyInstruction.Mov(
+                            reg1 = SizedRegister(expression.type.size, Register.B).advanced(),
+                            reg2 = SizedRegister(expression.type.size, accumulatorRegister).advanced()
+                        )
+                        this += assembleExpression(variableBindings, ast, expression.var2, accumulatorRegister)
+                        // guess we gotta switch A and B
+                        this += AssemblyInstruction.Xor(
+                            reg1 = SizedRegister(expression.type.size, Register.A).advanced(),
+                            reg2 = SizedRegister(expression.type.size, Register.B).advanced()
+                        )
+                        this += AssemblyInstruction.Xor(
+                            reg1 = SizedRegister(expression.type.size, Register.B).advanced(),
+                            reg2 = SizedRegister(expression.type.size, Register.A).advanced()
+                        )
+
+                        this += AssemblyInstruction.Xor(
+                            reg1 = SizedRegister(expression.type.size, Register.A).advanced(),
+                            reg2 = SizedRegister(expression.type.size, Register.B).advanced()
+                        )
+
+                        /* this is some special div shit */
+                        this += AssemblyInstruction.Push(Register.D)
+                        this += AssemblyInstruction.Xor(
+                            reg1 = SizedRegister(RegisterSize.BIT64,Register.D).advanced(),
+                            reg2 = SizedRegister(RegisterSize.BIT64, Register.D).advanced()
+                        )
+                        this += AssemblyInstruction.Div(SizedRegister(expression.type.size, Register.B).advanced())
+                        this += AssemblyInstruction.Pop(Register.D)
+                        this += AssemblyInstruction.Pop(Register.B)
+                    }
+                }
+                else -> TODO()
+            } // all this math code
         }
-        is SubExpression -> TODO()
         is VariableAccessExpression -> {
             val variable = variableBindings.first { it.name == expression.variableName }
             listOf(AssemblyInstruction.Mov(
@@ -84,7 +149,16 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
                 reg2 = variable.register.advanced()
             ))
         }
-        is DereferencePointerExpression -> TODO("pointers not allowed yet")
+        is DereferencePointerExpression -> {
+            buildList {
+                if(expression.pointerExpression.type !is PointerType) error("assertion failed")
+                this += assembleExpression(variableBindings, ast, expression.pointerExpression, accumulatorRegister)
+                this += AssemblyInstruction.Mov(
+                    reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(false),
+                    reg2 = SizedRegister(RegisterSize.BIT64,  accumulatorRegister).advanced(true)
+                )
+            }
+        }
     }
 
 }
