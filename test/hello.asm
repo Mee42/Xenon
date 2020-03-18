@@ -6,20 +6,37 @@ section .text
 
 main:
     ;push sp ; push the stack
-    mov rbx, 0x50
+    xor rax, rax
+    xor rbx, rbx
+    xor rcx, rcx
+    xor rdx, rdx
 
-    mov rdi, string    ; rdi is the first parameter
-    mov rsi, rbx   ; rsi is the second parameter
-    ;mov rsi, rbx       ; rdx is the third parameter
-
-    ;xor rdx, rdx ; zero rdx
-    ;mov edx, eax ; move eax to the LSBs of rdx
-    mov rax, 0 ; this needs to be zero
+    mov rax, 3
+    mov ecx, 7
+    call double
+    ;mov rax, 5
+    ; prints rax
+    mov rdi, string
+    mov rsi, rax
+    mov rax, 0
     call printf
-    ;pop rbp ; pop stack
-    ;pop rbx
+
     mov rax, 0  ; rax is the return value
     ret
 
+double: ; return value in register eax
+    ; argument 0 (x) in register ecx
+    push rbx
+    push rdx
+    mov ebx, ecx
+    push rbx
+    mov ebx, ecx
+    pop rdx
+    add ebx, edx
+    pop rdx
+    mov eax, ebx
+    pop rbx
+    ret
+
 section .data
-    string: db "0x50 == 0x%x", 10, 0
+    string: db "rax: %i", 10, 0

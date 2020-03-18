@@ -9,7 +9,7 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
     val text = """
-function double(int8 x) int8 {
+function double(int x) int {
     return x + x;
 }
     """.trimIndent()

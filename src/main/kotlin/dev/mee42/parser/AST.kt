@@ -14,7 +14,8 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>) {
     UINT8(BIT8,"uint8","byte"),
     UINT16(BIT16, "uint16","short"),
     UINT32(BIT32, "uint32","int"),
-    UINT64(BIT64, "uint64","long")
+    UINT64(BIT64, "uint64","long"),
+    BOOLEAN(BIT8, "bool"),
     ;
 
     constructor(size: RegisterSize, vararg names: String): this(size, names.toList())
@@ -24,6 +25,7 @@ sealed class Type(val size: RegisterSize)
 data class BaseType(val type: TypeEnum, val attributes: List<String>): Type(type.registerSize)
 data class PointerType(val type: Type): Type(BIT64)
 
+object DynamicType: Type(BIT64)
 
 sealed class Statement
 data class Block(val statements: List<Statement>): Statement()
@@ -34,10 +36,15 @@ object NoOpStatement: Statement() {
 
 
 sealed class Expression(val type: Type)
-class VariableAccessExpression(val variableName: String, type: Type): Expression(type)
+class VariableAccessExpression(val variableName: String, type: Type): Expression(type) {
+    override fun toString(): String {
+        return "VARIABLE($variableName)"
+    }
+}
 class DereferencePointerExpression(pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
 
-open class MathExpression(val var1: Expression, val var2: Expression): Expression(var1.type) {
+
+data class AddExpression(val var1: Expression,val var2: Expression): Expression(var1.type) {
     init {
         if(var1.type is PointerType || var2.type is PointerType) {
             error("adding to pointer types not supported as of right now")
@@ -47,9 +54,16 @@ open class MathExpression(val var1: Expression, val var2: Expression): Expressio
         }
     }
 }
-
-class AddExpression(var1: Expression, var2: Expression): MathExpression(var1, var2)
-class SubExpression(var1: Expression, var2: Expression): MathExpression(var1, var2)
+data class SubExpression(val var1: Expression,val var2: Expression): Expression(var1.type) {
+    init {
+        if(var1.type is PointerType || var2.type is PointerType) {
+            error("adding to pointer types not supported as of right now")
+        }
+        if((var1.type as BaseType).type.registerSize != (var2.type as BaseType).type.registerSize) {
+            error("mis-matched sizes")
+        }
+    }
+}
 
 data class Argument(val name: String, val type: Type)
 

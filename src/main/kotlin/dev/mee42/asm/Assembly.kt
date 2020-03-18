@@ -30,18 +30,18 @@ enum class Register(val bit64: String, val bit32: String, val bit16: String, val
 
     constructor(i: Int): this("r$i","r${i}d","r${i}w","r${i}b")
     companion object {
-        val argumentRegisters = listOf(B, C, D, R8, R9)
+        val argumentRegisters = listOf(C, D, R8, R9)
+        val usable = listOf(C, D, R8, R9, R10, R11, R12, R13, R14, R15)
     }
 }
 
-class SizedRegister(val size: RegisterSize, private val register: Register) {
+class SizedRegister(val size: RegisterSize, val register: Register) {
     override fun toString() = when(size) {
         BIT64 -> register.bit64
         BIT32 -> register.bit32
         BIT16 -> register.bit16
         BIT8 -> register.bit8
     }
-
 }
 
 class AdvancedRegister(private val register: SizedRegister, private val isMemory: Boolean) {
@@ -49,7 +49,7 @@ class AdvancedRegister(private val register: SizedRegister, private val isMemory
         return if(isMemory) "[$register]" else "$register"
     }
     init {
-        if(isMemory && register.size != RegisterSize.BIT64) error("all memory access must be 64-bit")
+        if(isMemory && register.size != BIT64) error("all memory access must be 64-bit")
     }
 }
 
@@ -60,10 +60,15 @@ sealed class AssemblyInstruction(private val str: String) {
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    add $reg1, $reg2")
     class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    sub $reg1, $reg2")
 
+    class Push(register: Register): AssemblyInstruction("    push ${SizedRegister(BIT64, register)}")
+    class Pop(register: Register): AssemblyInstruction("    pop ${SizedRegister(BIT64, register)}")
+
     class Label(name: String): AssemblyInstruction("$name:")
     class Jump(to: String): AssemblyInstruction("    jmp $to")
     class Comment(content: String): AssemblyInstruction("    ; $content")
     class CommentedLine(line: AssemblyInstruction, comment: String): AssemblyInstruction("$line ; $comment")
+
+
 
     override fun toString() =  str
 }

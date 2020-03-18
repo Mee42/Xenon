@@ -123,9 +123,10 @@ double: ; return value in rax
     mov rax, rbx
     ret
 ----
-arguments will be past in these registers, in order: `rbx`, `rcx`, `rdx`, `r8`, `r9`
-Only 5 arguments are supported at this time.
+arguments will be past in these registers, in order: `rcx`, `rdx`, `r8`,and `r9`
+Only 4 arguments are supported at this time.
 Return value is stored in `rax`.
+The `rbx` register will be used as the "accumulator", being a shared bridging point between expression evaluation
 Pointers are always 64 bits,
 where as smaller values can be stored in bigger registers and used properly.
 

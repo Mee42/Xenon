@@ -1,0 +1,83 @@
+=== ID Function
+[source, xenon]
+----
+function id(int x) int {
+    return x;
+}
+----
+[source, assembly]
+----
+id: ; returns in eax
+    mov eax, ebx
+    ret
+----
+=== Double Function
+[source, xenon]
+----
+function double(int x) int {
+    return x + x;
+}
+----
+[source, assembly]
+----
+double: ; returns in eax
+    push ebx ; ebx must not be tampered with, so we push ebx
+    add ebx, ebx
+    mov eax, ebx
+    pop ebx
+    ret
+----
+=== Complex Function
+[source, xenon]
+----
+function f(int x, int y) int {
+    return (x + x) - (y + x);
+}
+----
+[source, assembly]
+----
+
+; (x + x) + (x + y)
+; x * 3 + y
+f: ; returns in eax, takes in ecx and edx
+
+    ; because this is a push, ebx is upgraded to rbx
+    push rbx ; (1) B is used as the accumulator variable
+             ; it's assumed it's used during execution so it's pushed by default
+
+    ; each expression evaluates to assembly code that:
+    ;   *) outputs the value in rbx
+    ;   *) doesn't leave any registers but rbx mutated
+    ;   *) doesn't leave anything anything on the stack
+
+    push r8 ; (4)
+    ; (x + x)
+    mov ebx, ecx ; (2)
+    add ebx, ecx ;  |     <- fill ebx with the value in the first expression
+    push rbx     ; (2.a)  <- push it to the stack
+
+    ; (x + y)
+    mov ebx, ecx ; (3)
+    add ebx, edx ;  |     <- fill ebx with the value in the second expression
+    push rbx     ; (3.a)  <- push it to the stack
+
+    ; now, fill rbx with the value of the greater expression
+    ; we need an extra variable, so we reserve rdx for this expression
+    ; we can't reserve it locally (as we are using the top two elements of the stack to hold the addins)
+    ; we need to reserve it before the entire expression. See (4)
+    ; this is an "add from stack" operation using rbd and rdx
+
+    pop rbx      ; (5) rbx has the first value on the stack
+    pop r8       ; r8 has the second element from the stack
+    add ebx, r8d ; add, and (note) stores in rbx. rbx is always the accumulator register
+
+    pop r8 ; (4) this expression is over, so there should be no tampered registers, so pop it
+
+    ; (5)
+    ; the last expression just finished, and the value is in rbx, so we'll return that
+    mov eax, ebx
+
+    ; (6) returning
+    pop rbx  ; (1) this is always popped before returning
+    ret
+----
