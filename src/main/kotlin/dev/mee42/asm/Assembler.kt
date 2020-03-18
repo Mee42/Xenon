@@ -16,7 +16,7 @@ private fun assemble(function: Function, ast: AST): List<AssemblyInstruction> {
         if(function.arguments.size > 2) error("can't support more then 5 arguments to a function as of right now, lol")
         val variableBindings = mutableListOf<Variable>()
         val returnRegister = SizedRegister(function.returnType.size, Register.A)
-        val accumulatorRegister = Register.B
+        val accumulatorRegister = returnRegister.register
 
         // so we don't use these variables on accident
         variableBindings.add(Variable("_ret", function.returnType, returnRegister, true))
@@ -32,7 +32,6 @@ private fun assemble(function: Function, ast: AST): List<AssemblyInstruction> {
             variableBindings.add(Variable(it.name, it.type, register, true))
             this += AssemblyInstruction.Comment("argument $i (${it.name}) in register $register")
         }
-        this += AssemblyInstruction.Push(accumulatorRegister) // we always push the accumulator
         val statement = function.content.statements.first()
         // alright, now let's look at our first instruction
         // only one statement is supported right now lol
@@ -42,8 +41,8 @@ private fun assemble(function: Function, ast: AST): List<AssemblyInstruction> {
         // statement is ReturnStatement: everything after this line assumes that, everything before this line should act like it could be not
         val expression = statement.expression
         this += assembleExpression(variableBindings, ast, expression, accumulatorRegister)
-        this += AssemblyInstruction.Mov(returnRegister.advanced(), SizedRegister(returnRegister.size, accumulatorRegister).advanced())
-        this += AssemblyInstruction.Pop(accumulatorRegister)
+        // next line is not needed if the returnRegister is the same as the accumulator register
+        //this += AssemblyInstruction.Mov(returnRegister.advanced(), SizedRegister(returnRegister.size, accumulatorRegister).advanced())
         this += AssemblyInstruction.Ret
     }
 }
@@ -81,7 +80,7 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
         is VariableAccessExpression -> {
             val variable = variableBindings.first { it.name == expression.variableName }
             listOf(AssemblyInstruction.Mov(
-                reg1 = SizedRegister(variable.register.size, Register.B).advanced(),
+                reg1 = SizedRegister(variable.register.size, accumulatorRegister).advanced(),
                 reg2 = variable.register.advanced()
             ))
         }

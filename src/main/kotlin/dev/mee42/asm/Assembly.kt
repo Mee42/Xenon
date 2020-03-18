@@ -30,8 +30,8 @@ enum class Register(val bit64: String, val bit32: String, val bit16: String, val
 
     constructor(i: Int): this("r$i","r${i}d","r${i}w","r${i}b")
     companion object {
-        val argumentRegisters = listOf(C, D, R8, R9)
-        val usable = listOf(C, D, R8, R9, R10, R11, R12, R13, R14, R15)
+        val argumentRegisters = listOf(B, C, D, R8, R9)
+        val usable = listOf(B, C, D, R8, R9, R10, R11, R12, R13, R14, R15)
     }
 }
 

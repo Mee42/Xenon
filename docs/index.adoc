@@ -65,7 +65,7 @@ ie `\*array`, `*(array + 7)`. This is a dereference
 Assignments are statements, not expressions.
 Assignments can be one of these:
 
-[source, c]
+[source, xenon]
 ----
 val a = foo // this is immutable
 var b = foo // this is mutable
@@ -78,7 +78,7 @@ The value at the pointer has no such guarantee.
 
 If you wish to set something at the address of a pointer, you must use the `*` operator.
 
-[source, c]
+[source, xenon]
 ----
 *array = 2
 *(array + 1) = 3
@@ -86,19 +86,8 @@ If you wish to set something at the address of a pointer, you must use the `*` o
 **array = 5
 ----
 All assignments must either be to a direct variable or a dereferenced pointer expression.
+`5 = 3` won't compile (as it should).
 
-All complex assignments are parsed like:
-
-[source, c]
-----
-*foo() = bar()
-*baz() = boo()
-// turns into
-var _ptr_temp = foo()
-*_ptr_temp = bar()
-_ptr_temp = baz()
-*_ptr_temp = boo()
-----
 Assignments are _not_ expressions, meaning that `a = b = 7` will not compile.
 
 Identifiers that start with `_` are inserted by the compiler and are not allowed in the source code.
@@ -108,50 +97,55 @@ Identifiers that start with `_` are inserted by the compiler and are not allowed
 Each function is defined with a label equal to it's name.
 Here is an example function:
 
-[source, c]
+[source, xenon]
 ----
 function double(int64 x) int64 {
     return x + x;
 }
 ----
-This will compile to the following assembly:
-[source, asm]
+This will compile (or, compile to something effectively like) to the following assembly:
+[source, assembly]
 ----
 double: ; return value in rax
-    ; argument 0 (x) in register rbx
-    add rbx, rbx
-    mov rax, rbx
+    ; argument 0 (x) in register rcx
+    mov rax, rcx
+    add rax, rcx
     ret
 ----
-arguments will be past in these registers, in order: `rcx`, `rdx`, `r8`,and `r9`
-Only 4 arguments are supported at this time.
+As of version `f0652d8`, the actual output is:
+[source, assembly]
+----
+double: ; return value in register eax
+    ; argument 0 (x) in register ebx
+    push rcx
+    mov eax, ebx
+    push rax
+    mov eax, ebx
+    pop rcx
+    add eax, ecx
+    pop rcx
+    mov eax, eax
+    ret
+----
+Hopefully we can optimize some of that out in later versions.
+Premature optimization is the root of all evil, so we're going to stick with this.
+
+
+arguments will be past in these registers, in order: `rbx`, `rcx`, `rdx`, `r8`,and `r9`
+Only 5 arguments are supported at this time.
 Return value is stored in `rax`.
-The `rbx` register will be used as the "accumulator", being a shared bridging point between expression evaluation
+The `rax` register will also be used as the "accumulator", being a shared bridging point between expression evaluation.
 Pointers are always 64 bits,
 where as smaller values can be stored in bigger registers and used properly.
 
 **Concept of ownership:** The function calling can depend on all registers (except `A`) staying the same.
 The function being called needs to push all of the registers that it manipulates to the stack,
 and then pop the same registers in order the same order before returning from the function.
-This does not include argument parameters - ie, this is valid:
-[source, asm]
-----
-quadruple:
-    add rbx, rbx
-    add rbx, rbx
-    mov rax, rbx
-    ret
-----
-This is not valid:
-[source, asm]
-----
-func:
-    mov r10, rbx
-    add r10, rbx
-    add r10, rbx
-    mov rax, r10
-    ret
-----
+This is the same for expressions - expressions can only output their value, not manipulate other values or the stack.
+This means that expressions can be inlined easily - there's no sense of "dirty" and "clean" registers - just pure code
+
+This produces a lot of useless data moving, which we will ignore right now.
+It'll give us lots of room for optimizations.
 
 Because this compiles to assembly, the compiler can output relevant context as comments in the assembly code,
 which helps debugging.
