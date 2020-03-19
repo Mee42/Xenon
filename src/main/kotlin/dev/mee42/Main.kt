@@ -14,8 +14,8 @@ fun main() {
 //}
 //    """.trimIndent()
     val text = """
-function deref(int**** a, int one) int {
-    return (****a) + one;
+function deref(int* a) int {
+    return *a;
 }
     """.trimIndent()
     try {

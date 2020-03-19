@@ -49,7 +49,40 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                     ?: throw ParseException("Can't deal with ${next.content} operator",next)
                 MathExpression(expression, parseExpression(tokens, initialAST, localVariables),math)
             }
-            OPEN_PARENTHESES -> TODO("function calls not supported yet")
+            OPEN_PARENTHESES -> {
+                if(first.type != IDENTIFIER) throw ParseException("not a functional language, yet", next)
+                val arguments = mutableListOf<Expression>()
+                tokens.remove().checkType(OPEN_PARENTHESES,"popped token changed from last peek")
+                while(true){
+                    if(arguments.isEmpty()) {
+                        val token = tokens.peek() ?: error("ohno")
+                        if(token.type == CLOSE_PARENTHESES) break
+                        if(token.type == COMMA) throw ParseException("not expecting a comma",token)
+                    } else {
+                        val token = tokens.remove()
+                        if(token.type == CLOSE_PARENTHESES) break
+                        if(token.type != COMMA) throw ParseException("expecting a comma", token)
+                    }
+                    arguments.add(parseExpression(tokens, initialAST, localVariables))
+                }
+                // ok, let's find the function with that name
+                val function = initialAST.functions.firstOrNull { it.name == first.content }
+                    ?: throw ParseException("Can't find function named \"${first.content}\"", first)
+                if(function.arguments.size != arguments.size) {
+                    throw ParseException("expecting ${function.arguments.size} arguments, got ${arguments.size}", next)
+                }
+                function.arguments.forEachIndexed { i, arg ->
+                    if(arguments[i].type != arg.type) {
+                        throw ParseException("type mismatched: looking for ${arg.type}, got ${arguments[i].type}")
+                    }
+                }
+                FunctionCallExpression(
+                    arguments = arguments,
+                    function = function.name,
+                    returnType = function.returnType)
+                // now that we've established that the arguments are correct
+                TODO()
+            }
             CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET -> expression
             DOT -> TODO("member access not supported yet")
             else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
