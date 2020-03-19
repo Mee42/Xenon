@@ -2,14 +2,15 @@ package dev.mee42.asm
 
 import dev.mee42.parser.*
 import dev.mee42.parser.Function
-import kotlin.math.exp
 
 fun assemble(ast: AST):List<AssemblyInstruction> {
-    return ast.functions.map { assemble(it, ast) }.flatten()
+    return ast.functions
+        .filterIsInstance<XenonFunction>()
+        .map { assemble(it, ast) }.flatten()
 }
 private class Variable(val name: String, val type: Type, val register: SizedRegister, isFinal: Boolean)
 
-private fun assemble(function: Function, ast: AST): List<AssemblyInstruction> {
+private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstruction> {
     println("compiling function ${function.name}, ast: ${function.content}")
     return buildList {
 
@@ -157,6 +158,32 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
                     reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(false),
                     reg2 = SizedRegister(RegisterSize.BIT64,  accumulatorRegister).advanced(true)
                 )
+            }
+        }
+        is FunctionCallExpression -> {
+            buildList {
+                // alright, this is more of a pain
+                val argumentRegisters = expression.arguments
+                    .mapIndexed { index, expression -> Register.argumentRegisters[index] to expression }
+                // push all of the argument registers used
+                argumentRegisters.forEach { (reg, _) ->
+                    this += AssemblyInstruction.Push(reg)
+                }
+                argumentRegisters.forEach { (reg, expr) ->
+                    // evaluate and put the value in the register
+                    this += assembleExpression(variableBindings, ast, expr, accumulatorRegister)
+                    this += AssemblyInstruction.Mov(
+                        reg1 = SizedRegister(expr.type.size, reg).advanced(),
+                        reg2 = SizedRegister(expr.type.size, accumulatorRegister).advanced()
+                    )
+                }
+                // alright, everything is in the right registers
+                this += AssemblyInstruction.Call(expression.function)
+                // call it
+                // returns in rax, so it's already perfect
+                argumentRegisters.asReversed().forEach { (reg,_) ->
+                    this += AssemblyInstruction.Pop(reg)
+                }
             }
         }
     }

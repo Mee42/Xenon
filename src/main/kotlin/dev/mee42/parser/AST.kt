@@ -16,6 +16,7 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>) {
     UINT32(BIT32, "uint32","int"),
     UINT64(BIT64, "uint64","long"),
     BOOLEAN(BIT8, "bool"),
+    VOID(BIT8, "void")
     ;
 
     constructor(size: RegisterSize, vararg names: String): this(size, names.toList())
@@ -63,12 +64,14 @@ data class FunctionCallExpression(val arguments: List<Expression>, val function:
 
 data class Argument(val name: String, val type: Type)
 
-
-data class Function(val name: String, val arguments: List<Argument>, val returnType: Type, val content: Block)
+class AssemblyFunction(name: String, arguments: List<Argument>, returnType: Type): Function(name, arguments, returnType)
+class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, val content: Block): Function(name, arguments, returnType)
+abstract class Function(val name: String, val arguments: List<Argument>, val returnType: Type)
 
 data class AST(val functions: List<Function>)
 
 
-
-data class InitialFunction(val name: String, val arguments: List<Argument>, val attributes: List<String>, val returnType: Type, val content: List<Token>)
-data class InitialAST(val functions: List<InitialFunction>)
+data class InitialFunction(val name: String, val arguments: List<Argument>, val attributes: List<String>, val returnType: Type, val content: List<Token>?)
+data class InitialAST(val functions: List<InitialFunction>) {
+    fun withLibrary(functions: List<InitialFunction>): InitialAST = InitialAST(this.functions + functions)
+}

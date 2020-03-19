@@ -1,6 +1,7 @@
 package dev.mee42
 
 import dev.mee42.lexer.Token
+import dev.mee42.parser.*
 import java.lang.RuntimeException
 
 open class CompilerException(message: String = ""): RuntimeException(message)
@@ -14,8 +15,11 @@ fun main() {
 //}
 //    """.trimIndent()
     val text = """
-function deref(int* a) int {
-    return *a;
+function foo(int a) int {
+    return println(double(a));
+}
+function double(int a) int {
+    return a * a;
 }
     """.trimIndent()
     try {
@@ -25,6 +29,18 @@ function deref(int* a) int {
         e.printStackTrace()
     }
 }
+val standardLibrary = listOf(
+    InitialFunction(
+        name = "println",
+        arguments = listOf(Argument(
+            name = "i",
+            type = BaseType(TypeEnum.INT32)
+        )),
+        returnType = BaseType(TypeEnum.VOID),
+        content = null, // TODO build a dsl for this
+        attributes = emptyList()
+    )
+)
 
 private fun compile(string: String): String {
     val preprocessed = dev.mee42.xpp.preprocess(string)
@@ -32,11 +48,11 @@ private fun compile(string: String): String {
     val tokens = dev.mee42.lexer.lex(preprocessed)
     println("-- tokens --")
     tokens.map(Token::content).map { "$it "}.forEach(::print)
-//    tokens.forEach { print(it.type.name + "(${it.content}) ") }
-    println()
-    val ast = dev.mee42.parser.parse(tokens)
-    println("-- ast --")
-    println(ast)
+
+
+    val initialAST = dev.mee42.parser.parsePass1(tokens).withLibrary(standardLibrary)
+
+    val ast = dev.mee42.parser.parsePass2(initialAST)
 
     val optimized = dev.mee42.opt.optimize(ast)
 

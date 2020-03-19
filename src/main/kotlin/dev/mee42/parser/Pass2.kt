@@ -16,13 +16,19 @@ fun parsePass2(initialAST: InitialAST): AST {
 }
 
 private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function {
+    if(it.content == null) {
+        // it's an assembly function
+        return AssemblyFunction(
+            name = it.name, returnType = it.returnType, arguments = it.arguments
+        )
+    }
     if(it.content.first().type != OPEN_BRACKET || it.content.last().type != CLOSE_BRACKET) {
         throw InternalCompilerException(it.content.toString())
     }
     // this is a block, it has both the open and close brackets as tokens
     val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = true) }
     val block = parseBlock(ConsumableQueue(it.content), initialAST, arguments)
-    return Function(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments)
+    return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments)
 }
 /** this assumes that tokens starts with a { and ends the block with a } */
 private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
@@ -51,36 +57,6 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             }
             OPEN_PARENTHESES -> {
                 if(first.type != IDENTIFIER) throw ParseException("not a functional language, yet", next)
-                val arguments = mutableListOf<Expression>()
-                tokens.remove().checkType(OPEN_PARENTHESES,"popped token changed from last peek")
-                while(true){
-                    if(arguments.isEmpty()) {
-                        val token = tokens.peek() ?: error("ohno")
-                        if(token.type == CLOSE_PARENTHESES) break
-                        if(token.type == COMMA) throw ParseException("not expecting a comma",token)
-                    } else {
-                        val token = tokens.remove()
-                        if(token.type == CLOSE_PARENTHESES) break
-                        if(token.type != COMMA) throw ParseException("expecting a comma", token)
-                    }
-                    arguments.add(parseExpression(tokens, initialAST, localVariables))
-                }
-                // ok, let's find the function with that name
-                val function = initialAST.functions.firstOrNull { it.name == first.content }
-                    ?: throw ParseException("Can't find function named \"${first.content}\"", first)
-                if(function.arguments.size != arguments.size) {
-                    throw ParseException("expecting ${function.arguments.size} arguments, got ${arguments.size}", next)
-                }
-                function.arguments.forEachIndexed { i, arg ->
-                    if(arguments[i].type != arg.type) {
-                        throw ParseException("type mismatched: looking for ${arg.type}, got ${arguments[i].type}")
-                    }
-                }
-                FunctionCallExpression(
-                    arguments = arguments,
-                    function = function.name,
-                    returnType = function.returnType)
-                // now that we've established that the arguments are correct
                 TODO()
             }
             CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET -> expression
@@ -102,11 +78,43 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             DereferencePointerExpression(dereferencedPointer)
         }
         IDENTIFIER -> {
-            val firstAsLocalVariable = VariableAccessExpression(first.content,
-                type = localVariables.firstOrNull { it.name == first.content }?.type
-                    ?: throw ParseException("can't find variable ${first.content}", first)
-            )
-            checkForOperator(firstAsLocalVariable)
+            if(tokens.peek()?.type == OPEN_PARENTHESES) {
+                val arguments = mutableListOf<Expression>()
+                val paranth = tokens.remove().checkType(OPEN_PARENTHESES,"popped token changed from last peek")
+                while(true){
+                    if(arguments.isEmpty()) {
+                        val token = tokens.peek() ?: error("ohno")
+                        if(token.type == CLOSE_PARENTHESES) break
+                        if(token.type == COMMA) throw ParseException("not expecting a comma",token)
+                    } else {
+                        val token = tokens.remove()
+                        if(token.type == CLOSE_PARENTHESES) break
+                        if(token.type != COMMA) throw ParseException("expecting a comma", token)
+                    }
+                    arguments.add(parseExpression(tokens, initialAST, localVariables))
+                }
+                // ok, let's find the function with that name
+                val function = initialAST.functions.firstOrNull { it.name == first.content }
+                    ?: throw ParseException("Can't find function named \"${first.content}\"", first)
+                if(function.arguments.size != arguments.size) {
+                    throw ParseException("expecting ${function.arguments.size} arguments, got ${arguments.size}", paranth)
+                }
+                function.arguments.forEachIndexed { i, arg ->
+                    if(arguments[i].type != arg.type) {
+                        throw ParseException("type mismatched: looking for ${arg.type}, got ${arguments[i].type}")
+                    }
+                }
+                FunctionCallExpression(
+                    arguments = arguments,
+                    function = function.name,
+                    returnType = function.returnType)
+            } else {
+                val firstAsLocalVariable = VariableAccessExpression(first.content,
+                    type = localVariables.firstOrNull { it.name == first.content }?.type
+                        ?: throw ParseException("can't find variable ${first.content}", first)
+                )
+                checkForOperator(firstAsLocalVariable)
+            }
         }
         else -> TODO("can't support expressions that start with type ${first.type}")
     }
