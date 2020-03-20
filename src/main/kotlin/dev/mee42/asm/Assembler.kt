@@ -1,7 +1,8 @@
 package dev.mee42.asm
 
 import dev.mee42.parser.*
-import dev.mee42.parser.Function
+import kotlin.math.abs
+import kotlin.random.Random
 
 fun assemble(ast: AST):List<AssemblyInstruction> {
     return ast.functions
@@ -34,18 +35,22 @@ private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstructio
             variableBindings.add(Variable(it.name, it.type, register, true))
             this += AssemblyInstruction.Comment("argument $i (${it.name}) in register $register")
         }
-        val statement = function.content.statements.first()
-        // alright, now let's look at our first instruction
-        // only one statement is supported right now lol
-        if(statement !is ReturnStatement){
-            error("only return statements allowed right now")
+        for(statement in function.content.statements) {
+            when (statement) {
+                is ReturnStatement -> {
+                    val expression = statement.expression
+                    this += assembleExpression(variableBindings, ast, expression, accumulatorRegister)
+                    this += AssemblyInstruction.Ret
+                }
+                is ExpressionStatement -> {
+                    this += assembleExpression(variableBindings, ast, statement.expression, accumulatorRegister)
+                }
+                else -> TODO("can't support that type of statement")
+            }
+            this += AssemblyInstruction.Comment("")
         }
-        // statement is ReturnStatement: everything after this line assumes that, everything before this line should act like it could be not
-        val expression = statement.expression
-        this += assembleExpression(variableBindings, ast, expression, accumulatorRegister)
-        // next line is not needed if the returnRegister is the same as the accumulator register
-        //this += AssemblyInstruction.Mov(returnRegister.advanced(), SizedRegister(returnRegister.size, accumulatorRegister).advanced())
-        this += AssemblyInstruction.Ret
+
+
     }
 }
 
@@ -60,18 +65,24 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
         is MathExpression -> {
             // alright, here's the real test
             // reserve a free register
+            val id = abs(Random.nextInt() % 100)
             when (expression.mathType) {
                 in listOf(MathType.ADD, MathType.SUB) -> {
                     buildList {
                         val (newBindings, reservedRegister) = variableBindings.reserveOne(expression.type)
-                        this += AssemblyInstruction.Push(reservedRegister.register)
+                        this += AssemblyInstruction.Push(reservedRegister.register).comment("starting add/sub $id")
 
                         this += assembleExpression(newBindings, ast, expression.var1, accumulatorRegister)
                         this += AssemblyInstruction.Push(accumulatorRegister)
 
                         this += assembleExpression(newBindings, ast, expression.var2, accumulatorRegister)
                         this += AssemblyInstruction.Pop(reservedRegister.register)
-
+                        if(expression.mathType == MathType.SUB) {
+                            this += AssemblyInstruction.Push(accumulatorRegister)
+                            this += AssemblyInstruction.Push(reservedRegister.register)
+                            this += AssemblyInstruction.Pop(accumulatorRegister)
+                            this += AssemblyInstruction.Pop(reservedRegister.register)
+                        }
                         this += when (expression.mathType) {
                             MathType.ADD -> AssemblyInstruction::Add
                             MathType.SUB -> AssemblyInstruction::Sub
@@ -81,12 +92,13 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
                             reservedRegister.advanced()
                         )
 
-                        this += AssemblyInstruction.Pop(reservedRegister.register)
+                        this += AssemblyInstruction.Pop(reservedRegister.register).comment("ending add/sub $id")
                     }
                 }
                 MathType.MULT -> {
                     buildList {
                         if(accumulatorRegister != Register.A) error("need special code to deal with this")
+                        this += AssemblyInstruction.Comment("starting mult $id")
                         this += assembleExpression(variableBindings, ast, expression.var1, accumulatorRegister)
                         // we need to use B as a temporary variable
                         this += AssemblyInstruction.Push(Register.B)
@@ -97,14 +109,18 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
                         )
                         this += assembleExpression(variableBindings, ast, expression.var2, accumulatorRegister)
                         // run the math thing
+                        this += AssemblyInstruction.Push(Register.D)
                         this += AssemblyInstruction.Mul(SizedRegister(expression.type.size, Register.B).advanced())
-                        this += AssemblyInstruction.Pop(Register.B)
+                        this += AssemblyInstruction.Pop(Register.D)
+
+                        this += AssemblyInstruction.Pop(Register.B).comment("ending mult $id")
                     }
                 }
                 MathType.DIV -> {
                     // apparently div needs some extra treatment
                     buildList {
                         if(accumulatorRegister != Register.A) error("need special code to deal with this")
+                        this += AssemblyInstruction.Comment("starting div $id")
                         this += assembleExpression(variableBindings, ast, expression.var1, accumulatorRegister)
                         // we need to use B as a temporary variable
                         this += AssemblyInstruction.Push(Register.B)
@@ -137,7 +153,7 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
                         )
                         this += AssemblyInstruction.Div(SizedRegister(expression.type.size, Register.B).advanced())
                         this += AssemblyInstruction.Pop(Register.D)
-                        this += AssemblyInstruction.Pop(Register.B)
+                        this += AssemblyInstruction.Pop(Register.B).comment("ending div $id")
                     }
                 }
                 else -> TODO()
@@ -148,7 +164,7 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
             listOf(AssemblyInstruction.Mov(
                 reg1 = SizedRegister(variable.register.size, accumulatorRegister).advanced(),
                 reg2 = variable.register.advanced()
-            ))
+            ).comment( "pulling variable ${expression.variableName}"))
         }
         is DereferencePointerExpression -> {
             buildList {
@@ -169,13 +185,13 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
                 argumentRegisters.forEach { (reg, _) ->
                     this += AssemblyInstruction.Push(reg)
                 }
-                argumentRegisters.forEach { (reg, expr) ->
+                argumentRegisters.forEachIndexed { i, (reg, expr) ->
                     // evaluate and put the value in the register
                     this += assembleExpression(variableBindings, ast, expr, accumulatorRegister)
                     this += AssemblyInstruction.Mov(
                         reg1 = SizedRegister(expr.type.size, reg).advanced(),
                         reg2 = SizedRegister(expr.type.size, accumulatorRegister).advanced()
-                    )
+                    ).comment("argument ${expression.argumentNames[i]}")
                 }
                 // alright, everything is in the right registers
                 this += AssemblyInstruction.Call(expression.function)
@@ -188,6 +204,9 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
         }
     }
 
+}
+private fun AssemblyInstruction.comment(str: String): AssemblyInstruction {
+    return AssemblyInstruction.CommentedLine(this, str)
 }
 
 private fun List<Variable>.reserveOne(type: Type): Pair<List<Variable>, SizedRegister> {

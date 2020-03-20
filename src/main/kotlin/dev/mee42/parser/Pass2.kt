@@ -59,7 +59,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 if(first.type != IDENTIFIER) throw ParseException("not a functional language, yet", next)
                 TODO()
             }
-            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET -> expression
+            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET, IDENTIFIER, RETURN_KEYWORD -> expression
             DOT -> TODO("member access not supported yet")
             else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
         }
@@ -83,13 +83,13 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 val paranth = tokens.remove().checkType(OPEN_PARENTHESES,"popped token changed from last peek")
                 while(true){
                     if(arguments.isEmpty()) {
-                        val token = tokens.peek() ?: error("ohno")
+                        val token = tokens.peek() ?: error("no")
                         if(token.type == CLOSE_PARENTHESES) break
                         if(token.type == COMMA) throw ParseException("not expecting a comma",token)
                     } else {
                         val token = tokens.remove()
                         if(token.type == CLOSE_PARENTHESES) break
-                        if(token.type != COMMA) throw ParseException("expecting a comma", token)
+                        if(token.type != COMMA) throw ParseException("expecting a comma $arguments", token)
                     }
                     arguments.add(parseExpression(tokens, initialAST, localVariables))
                 }
@@ -104,10 +104,11 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                         throw ParseException("type mismatched: looking for ${arg.type}, got ${arguments[i].type}")
                     }
                 }
-                FunctionCallExpression(
+                checkForOperator(FunctionCallExpression(
                     arguments = arguments,
                     function = function.name,
-                    returnType = function.returnType)
+                    returnType = function.returnType,
+                    argumentNames = function.arguments.map { it.name }))
             } else {
                 val firstAsLocalVariable = VariableAccessExpression(first.content,
                     type = localVariables.firstOrNull { it.name == first.content }?.type
@@ -132,7 +133,18 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
         }
         RETURN_KEYWORD -> {
             val value = parseExpression(tokens, initialAST, localVariables)
-            return ReturnStatement(value)
+            ReturnStatement(value)
+        }
+        IDENTIFIER -> {
+            // well, it might be a function call, or it might be a equals-type thing
+            // check the next character
+            if(tokens.peek()!!.type == OPERATOR) {
+                TODO("can't support operators after identifiers as a statement")
+            }
+            // it's an expression! can we like, shove the token back into the stream and parse it as an expression?
+            // yes
+            tokens.shove(firstToken)
+            ExpressionStatement(parseExpression(tokens, initialAST, localVariables))
         }
         else -> throw ParseException("can't support statements that start with ${firstToken.content}", firstToken)
     }

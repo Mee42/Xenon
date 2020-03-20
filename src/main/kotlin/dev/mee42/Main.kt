@@ -8,18 +8,21 @@ open class CompilerException(message: String = ""): RuntimeException(message)
 
 class InternalCompilerException(message: String): CompilerException(message)
 
+// TODO figure out where to store variables
+//   https://stackoverflow.com/questions/36529449/why-are-rbp-and-rsp-called-general-purpose-registers
+//   https://stackoverflow.com/questions/41912684/what-is-the-purpose-of-the-rbp-register-in-x86-64-assembler
+
+
 fun main() {
-//    val text = """
-//function poly(int a, int b, int c, int x) int {
-//    return (a * x * x) + (b * x) + c
-//}
-//    """.trimIndent()
     val text = """
-function foo(int a) int {
-    return println(double(a));
+function trace(int a) int {
+    println(a)
+    return a
 }
-function double(int a) int {
-    return a * a;
+function main_(int a, int b, int c) int {
+    println(a + b + c) 
+    println(trace(a * b) + trace(b * c))
+    return a
 }
     """.trimIndent()
     try {
@@ -50,9 +53,9 @@ private fun compile(string: String): String {
     tokens.map(Token::content).map { "$it "}.forEach(::print)
 
 
-    val initialAST = dev.mee42.parser.parsePass1(tokens).withLibrary(standardLibrary)
+    val initialAST = parsePass1(tokens).withLibrary(standardLibrary)
 
-    val ast = dev.mee42.parser.parsePass2(initialAST)
+    val ast = parsePass2(initialAST)
 
     val optimized = dev.mee42.opt.optimize(ast)
 

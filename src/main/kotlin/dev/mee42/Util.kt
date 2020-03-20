@@ -21,6 +21,9 @@ class ConsumableQueue<T>(creator: Collection<T>) {
             }
         }
     }
+    fun shove(elem: T) {
+        queue.addFirst(elem)
+    }
 }
 
 /**

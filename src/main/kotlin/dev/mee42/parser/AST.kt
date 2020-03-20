@@ -34,7 +34,7 @@ data class ReturnStatement(val expression: Expression): Statement()
 object NoOpStatement: Statement() {
     override fun toString() = "NOP"
 }
-
+data class ExpressionStatement(val expression: Expression): Statement()
 
 sealed class Expression(val type: Type)
 class VariableAccessExpression(val variableName: String, type: Type): Expression(type) {
@@ -60,7 +60,7 @@ data class MathExpression(val var1: Expression, val var2: Expression, val mathTy
     }
 }
 
-data class FunctionCallExpression(val arguments: List<Expression>, val function: String, val returnType: Type): Expression(returnType)
+data class FunctionCallExpression(val arguments: List<Expression>,val argumentNames: List<String>,  val function: String, val returnType: Type): Expression(returnType)
 
 data class Argument(val name: String, val type: Type)
 
