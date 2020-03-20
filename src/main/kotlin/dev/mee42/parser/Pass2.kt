@@ -78,29 +78,29 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             DereferencePointerExpression(dereferencedPointer)
         }
         IDENTIFIER -> {
-            if(tokens.peek()?.type == OPEN_PARENTHESES) {
+            if (tokens.peek()?.type == OPEN_PARENTHESES) {
                 val arguments = mutableListOf<Expression>()
-                val paranth = tokens.remove().checkType(OPEN_PARENTHESES,"popped token changed from last peek")
-                while(true){
-                    if(arguments.isEmpty()) {
+                val paranth = tokens.remove().checkType(OPEN_PARENTHESES, "popped token changed from last peek")
+                while (true) {
+                    if (arguments.isEmpty()) {
                         val token = tokens.peek() ?: error("no")
-                        if(token.type == CLOSE_PARENTHESES) break
-                        if(token.type == COMMA) throw ParseException("not expecting a comma",token)
+                        if (token.type == CLOSE_PARENTHESES) break
+                        if (token.type == COMMA) throw ParseException("not expecting a comma", token)
                     } else {
                         val token = tokens.remove()
-                        if(token.type == CLOSE_PARENTHESES) break
-                        if(token.type != COMMA) throw ParseException("expecting a comma $arguments", token)
+                        if (token.type == CLOSE_PARENTHESES) break
+                        if (token.type != COMMA) throw ParseException("expecting a comma $arguments", token)
                     }
                     arguments.add(parseExpression(tokens, initialAST, localVariables))
                 }
                 // ok, let's find the function with that name
                 val function = initialAST.functions.firstOrNull { it.name == first.content }
                     ?: throw ParseException("Can't find function named \"${first.content}\"", first)
-                if(function.arguments.size != arguments.size) {
+                if (function.arguments.size != arguments.size) {
                     throw ParseException("expecting ${function.arguments.size} arguments, got ${arguments.size}", paranth)
                 }
                 function.arguments.forEachIndexed { i, arg ->
-                    if(arguments[i].type != arg.type) {
+                    if (arguments[i].type != arg.type) {
                         throw ParseException("type mismatched: looking for ${arg.type}, got ${arguments[i].type}")
                     }
                 }
@@ -138,13 +138,50 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
         IDENTIFIER -> {
             // well, it might be a function call, or it might be a equals-type thing
             // check the next character
-            if(tokens.peek()!!.type == OPERATOR) {
+            if(firstToken.content == "val" || firstToken.content == "var") {
+                val isFinal = firstToken.content == "val"
+                val identifier = tokens.remove().checkType(IDENTIFIER, "looking for variable identifier").content
+                var nextToken = tokens.remove()
+                val type = if (nextToken.type == OPERATOR && nextToken.content == "<") {
+                    // typedef
+                    val typeTokens = tokens.removeWhile { !(it.type == OPERATOR && it.content == ">") }
+                    val type = parseType(typeTokens, nextToken)
+                    nextToken = tokens.remove()
+                    type
+                } else null
+
+                if(!(nextToken.type == OPERATOR && nextToken.content == "=")){
+                    throw ParseException("expecting an equal sign", nextToken)
+                }
+                val expression = parseExpression(tokens, initialAST, localVariables)
+                if(type != null) {
+                    if(expression is IntegerValueExpression && type is BaseType && type.type != expression.type.type) {
+                        // okay, we gotta make sure types are good
+                        // because they aren't the same
+                        // if expression is unsigned but type is signed, error
+                        if(expression.type.type.isUnsigned && !type.type.isUnsigned){
+                            throw ParseException("can't implicit cast from ${expression.type} to $type",nextToken)
+                        } else {
+                            TODO("I just can't deal oof")
+                        }
+                    }
+                    if(expression.type != type) {
+                        throw ParseException("type failure - looking for $type but got ${expression.type}", nextToken)
+                    }
+                }
+                DeclareVariableStatement(
+                    variableName = identifier,
+                    final = isFinal,
+                    expression = parseExpression(tokens, initialAST, localVariables)
+                )
+            } else if(tokens.peek()!!.type == OPERATOR) {
                 TODO("can't support operators after identifiers as a statement")
+            } else {
+                tokens.shove(firstToken)
+                ExpressionStatement(parseExpression(tokens, initialAST, localVariables))
             }
             // it's an expression! can we like, shove the token back into the stream and parse it as an expression?
             // yes
-            tokens.shove(firstToken)
-            ExpressionStatement(parseExpression(tokens, initialAST, localVariables))
         }
         else -> throw ParseException("can't support statements that start with ${firstToken.content}", firstToken)
     }

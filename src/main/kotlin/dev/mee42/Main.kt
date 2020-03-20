@@ -15,14 +15,9 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
     val text = """
-function trace(int a) int {
-    println(a)
-    return a
-}
-function main_(int a, int b, int c) int {
-    println(a + b + c) 
-    println(trace(a * b) + trace(b * c))
-    return a
+function foo(long a, long* b) int {
+    var <long> a  = a;
+    val d = b;
 }
     """.trimIndent()
     try {

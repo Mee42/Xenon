@@ -9,51 +9,58 @@ fun assemble(ast: AST):List<AssemblyInstruction> {
         .filterIsInstance<XenonFunction>()
         .map { assemble(it, ast) }.flatten()
 }
-private class Variable(val name: String, val type: Type, val register: SizedRegister, isFinal: Boolean)
+private class Variable(val name: String, val type: Type, val register: AdvancedRegister)
+
+private fun stackPointerRegister(offset: Int): AdvancedRegister {
+    return AdvancedRegister(
+        register = SizedRegister(RegisterSize.BIT64, Register.BP),
+        isMemory = true,
+        offset = offset
+    )
+}
 
 private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstruction> {
     println("compiling function ${function.name}, ast: ${function.content}")
     return buildList {
-
         // these are the registers needed to call this function:
-        if(function.arguments.size > Register.argumentRegisters.size) error("can't support more then ${Register.argumentRegisters.size} arguments to a function as of right now, lol")
         val variableBindings = mutableListOf<Variable>()
+
         val returnRegister = SizedRegister(function.returnType.size, Register.A)
-        val accumulatorRegister = returnRegister.register
 
         // so we don't use these variables on accident
-        variableBindings.add(Variable("_ret", function.returnType, returnRegister, true))
-        variableBindings.add(Variable("_acc",DynamicType, SizedRegister(RegisterSize.BIT64, accumulatorRegister), true))
-
         this += AssemblyInstruction.CommentedLine(
             line = AssemblyInstruction.Label(function.name),
             comment = "return value in register $returnRegister")
         // so the argument registers are
+        // for now, let's fit everything into 8 bytes?
+        // yeah
+        // sure
+        var size = function.arguments.sumBy { it.type.size.bytes } + 8 // starts at 24
         function.arguments.forEachIndexed { i, it ->
-            val size = it.type.size
-            val register = SizedRegister(size, Register.argumentRegisters[i])
-            variableBindings.add(Variable(it.name, it.type, register, true))
+            val register = stackPointerRegister(size) // TODO stopped here look at inital.asm 71
+            size -= it.type.size.bytes
+            variableBindings.add(Variable(it.name, it.type, register))
             this += AssemblyInstruction.Comment("argument $i (${it.name}) in register $register")
         }
-        for(statement in function.content.statements) {
-            when (statement) {
-                is ReturnStatement -> {
-                    val expression = statement.expression
-                    this += assembleExpression(variableBindings, ast, expression, accumulatorRegister)
-                    this += AssemblyInstruction.Ret
-                }
-                is ExpressionStatement -> {
-                    this += assembleExpression(variableBindings, ast, statement.expression, accumulatorRegister)
-                }
-                else -> TODO("can't support that type of statement")
-            }
-            this += AssemblyInstruction.Comment("")
-        }
+//        for(statement in function.content.statements) {
+//            when (statement) {
+//                is ReturnStatement -> {
+//                    val expression = statement.expression
+//                    this += assembleExpression(variableBindings, ast, expression, accumulatorRegister)
+//                    this += AssemblyInstruction.Ret
+//                }
+//                is ExpressionStatement -> {
+//                    this += assembleExpression(variableBindings, ast, statement.expression, accumulatorRegister)
+//                }
+//                else -> TODO("can't support that type of statement")
+//            }
+//            this += AssemblyInstruction.Comment("")
+//        }
 
 
     }
 }
-
+/*
 // output assembly that, using the variables in the registers
 // computes the value of the expression
 // when this assembly completes, the following must be true
@@ -204,11 +211,11 @@ private fun assembleExpression(variableBindings: List<Variable>, ast: AST, expre
         }
     }
 
-}
+}*/
 private fun AssemblyInstruction.comment(str: String): AssemblyInstruction {
     return AssemblyInstruction.CommentedLine(this, str)
 }
-
+/*
 private fun List<Variable>.reserveOne(type: Type): Pair<List<Variable>, SizedRegister> {
     val register = Register.usable.firstOrNull { this.none { variable -> variable.register.register == it } }
         ?: error("ran out of registers oof")
@@ -218,7 +225,7 @@ private fun List<Variable>.reserveOne(type: Type): Pair<List<Variable>, SizedReg
     }.toReservedRegisterName()
     val sized =  SizedRegister(type.size, register)
     return (this + Variable(name,type,sized, true)) to sized
-}
+}*/
 
 private fun SizedRegister.advanced(isMemory: Boolean = false): AdvancedRegister {
     return AdvancedRegister(

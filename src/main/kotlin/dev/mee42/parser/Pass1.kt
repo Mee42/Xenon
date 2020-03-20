@@ -66,7 +66,7 @@ private fun parseArgument(tokens: List<Token>): Argument {
         type = parseType(tokens.subList(0, tokens.size - 1), identifier))
 }
 
-private fun parseType(tokens: List<Token>, nearbyToken: Token): Type {
+fun parseType(tokens: List<Token>, nearbyToken: Token): Type {
     if(tokens.isEmpty()) throw ParseException("Can't find type", nearbyToken)
     if(tokens.last().type == TokenType.ASTERISK) {
         return PointerType(parseType(tokens.dropLast(1), tokens.last()))

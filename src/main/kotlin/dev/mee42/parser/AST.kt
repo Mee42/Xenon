@@ -1,53 +1,51 @@
 package dev.mee42.parser
 
+import dev.mee42.Either
 import dev.mee42.asm.RegisterSize
 import dev.mee42.asm.RegisterSize.*
 import dev.mee42.lexer.Token
-import java.awt.Point
 
 
-enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>) {
-    INT8(BIT8, "int8","byte"),
-    INT16(BIT16, "int16","short"),
-    INT32(BIT32, "int32","int"),
-    INT64(BIT64, "int64","long"),
-    UINT8(BIT8,"uint8","byte"),
-    UINT16(BIT16, "uint16","short"),
-    UINT32(BIT32, "uint32","int"),
-    UINT64(BIT64, "uint64","long"),
-    BOOLEAN(BIT8, "bool"),
-    VOID(BIT8, "void")
-    ;
-
-    constructor(size: RegisterSize, vararg names: String): this(size, names.toList())
+sealed class Statement{
+    abstract val localVariableCount: Int
 }
-sealed class Type(val size: RegisterSize)
-
-data class BaseType(val type: TypeEnum): Type(type.registerSize)
-data class PointerType(val type: Type): Type(BIT64)
-
-object DynamicType: Type(BIT64)
-
-sealed class Statement
-data class Block(val statements: List<Statement>): Statement()
-data class ReturnStatement(val expression: Expression): Statement()
+data class Block(val statements: List<Statement>): Statement() {
+    override val localVariableCount: Int
+        get() = statements.sumBy { it.localVariableCount }
+}
+data class ReturnStatement(val expression: Expression): Statement(){
+    override val localVariableCount: Int
+        get() = 0
+}
 object NoOpStatement: Statement() {
+    override val localVariableCount: Int
+        get() = 0
+
     override fun toString() = "NOP"
 }
-data class ExpressionStatement(val expression: Expression): Statement()
+data class ExpressionStatement(val expression: Expression): Statement() {
+    override val localVariableCount: Int
+        get() = 0
+}
 
-sealed class Expression(val type: Type)
+data class DeclareVariableStatement(val variableName: String, val final: Boolean, val expression: Expression) : Statement() {
+    override val localVariableCount: Int
+        get() = 1
+}
+
+sealed class Expression(open val type: Type)
 class VariableAccessExpression(val variableName: String, type: Type): Expression(type) {
     override fun toString(): String {
         return "VARIABLE($variableName)"
     }
 }
-class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
+class DereferencePointerExpression(pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
+class IntegerValueExpression(val value: Long, override val type: BaseType) :Expression(type)
+
+
 
 enum class MathType(val symbol: String) {
-    ADD("+"), SUB("-"), MULT("*"), DIV("/")
-    ;
-
+    ADD("+"), SUB("-"), MULT("*"), DIV("/");
 }
 data class MathExpression(val var1: Expression, val var2: Expression, val mathType: MathType): Expression(var1.type) {
     init {

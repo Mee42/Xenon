@@ -17,8 +17,10 @@ enum class Register(val bit64: String, val bit32: String, val bit16: String, val
     D("rdx","edx","dx","dl"),
     SI("rsi","esi","si","sil"),
     DI("rdi","edi","di","dil"),
+
     BP("rbp","ebp","bp","bpl"),
     SP("rsp","esp","sp","spl"),
+
     R8(8),
     R9(9),
     R10(10),
@@ -44,12 +46,17 @@ class SizedRegister(val size: RegisterSize, val register: Register) {
     }
 }
 
-class AdvancedRegister(private val register: SizedRegister, private val isMemory: Boolean) {
+class AdvancedRegister(private val register: SizedRegister, private val isMemory: Boolean, private val offset: Int = 0) {
     override fun toString(): String {
-        return if(isMemory) "[$register]" else "$register"
+        if(!isMemory) return register.toString()
+        if(offset == 0) return "[$register]"
+        if(offset > 0) return "[$register + $offset]"
+        // offset < 0
+        return "[$register - ${-1 * offset}]"
     }
     init {
         if(isMemory && register.size != BIT64) error("all memory access must be 64-bit")
+        if(offset != 0 && !isMemory) error("can't have an offset without accessing memory")
     }
 }
 

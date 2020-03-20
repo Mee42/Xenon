@@ -33,7 +33,8 @@ enum class TokenType(val regex: Regex) {
     @Language("RegExp") WHITESPACE(quote = false, str = """\s+"""),
     @Language("RegExp") ATTRIBUTE (quote = false, str = """@[a-zA-Z0-9_]*"""),
     @Language("RegExp") IDENTIFIER(quote = false, str = """[a-z][A-Za-z0-9_]*"""),
-    @Language("RegExp") OPERATOR  (quote = false, str = """[+\-/><=!*%]+""")
+    @Language("RegExp") OPERATOR  (quote = false, str = """[+\-/><=!*%]+"""),
+    @Language("RegExp") INTEGER   (quote )
     ;
     constructor(str: String, quote: Boolean = true): this(Regex("^" + if(quote) Regex.escape(str) else str))
 }

@@ -51,3 +51,8 @@ fun <T> List<T>.splitBy(includeSplitter: Boolean, splitAt: (T) -> Boolean): List
     list.add(subList(lastSplitAt, size))
     return list
 }
+
+sealed class Either<A,B> {
+    class Left<A>(val a: A):  Either<A, Nothing>()
+    class Right<B>(val b: B): Either<Nothing, B>()
+}
