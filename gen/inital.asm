@@ -5,65 +5,76 @@ section .text
     global main
 
 main:
-    mov ebx, 2
-    mov ecx, 3
-    mov edx, 4
-    call main_
+    push 30 ; a
+    push 20 ; b
+    mov rbp, 40
+    call foo
+    add rsp, 16
+    ; rax has the result
+    mov rbx, rax
+    call println
     ret
 
-trace: ; return value in register eax
-    ; argument 0 (a) in register ebx
-    push rbx
-    mov eax, ebx ; pulling variable a
-    mov ebx, eax ; argument i
-    call println
-    pop rbx
-    ;
-    mov eax, ebx ; pulling variable a
-    ret
+; function foo(int a, int b) int {
+;     int c = a + b;
+;     int d = a + c;
+;     return c + d;
+; } // (a + b) + (a + (a + b))
+;    // a + a + a + b + b
+; foo(30, 20) = 130
 
+;       ~ higher memory ~
+; 30
+; 20
+; ~ call ref ~
+; 40 <- rbp
+; XX <- c
+; XX <- d, rsp
+; \/ local stack zone: push/pop is allowed \/
+;       ~ lower memory ~
 
-main_: ; return value in register eax
-    ; argument 0 (a) in register ebx
-    ; argument 1 (b) in register ecx
-    ; argument 2 (c) in register edx
-    push rbx
-    push r8 ; starting add/sub 44
-    push rbx
-    ; starting mult 44
-    mov eax, ebx ; pulling variable a
-    push rbx
-    mov ebx, eax
-    mov eax, ecx ; pulling variable b
-    push rdx
-    mul ebx
-    pop rdx
-    pop rbx ; ending mult 44
-    mov ebx, eax ; argument a
-    call trace
-    pop rbx
-    push rax
-    push rbx
-    ; starting mult 84
-    mov eax, ecx ; pulling variable b
-    push rbx
-    mov ebx, eax
-    mov eax, edx ; pulling variable c
-    push rdx
-    mul ebx
-    pop rdx
-    pop rbx ; ending mult 84
-    mov ebx, eax ; argument a
-    call trace
-    pop rbx
-    pop r8
-    add eax, r8d
-    pop r8 ; ending add/sub 44
-    mov ebx, eax ; argument i
-    call println
-    pop rbx
-    ;
-    mov eax, ebx ; pulling variable a
+foo:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+
+; int c = a + b:
+; get a
+mov rax, [rbp + 24] ; this line could be any expression that leaves the result in rax. it can use any register
+push rax ; push it
+
+; get b
+mov rax, [rbp + 16] ; get b expression (ie, this could be anything that sets rax to the right value). same as above
+push rax ; push it
+
+; +
+pop rax ; we can use registers as much as we want, but we can not nest "register free use" zones
+pop rbx ; because the two things are already on the stack, this is much better
+add rax, rbx
+mov [rbp - 8], rax  ; set c
+;
+
+mov rax, [rbp + 24]
+add rax, [rbp + 16]
+mov [rbp - 8], rax
+
+    mov rax,  [rbp + 24] ; get a
+    add rax, [rbp - 8]   ; get c
+    mov [rbp - 16], rax  ; set d
+
+    mov rax, [rbp -8]   ; get c
+    add rax, [rbp - 16] ; add d
+
+    ; [rbp - 16] d
+    ; [rbp - 8]  c
+    ; [rbp]      the old rbp: 40
+    ; [rbp + 8]  the ref to the call instruction
+    ; [rbp + 24] a
+    ; [rbp + 16] b
+
+    ; return
+    add rsp, 16
+    pop rbp
     ret
 
 println: ; function println(int64 i)
