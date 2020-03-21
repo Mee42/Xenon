@@ -15,9 +15,9 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
     val text = """
-function foo(long a, long* b) int {
-    var <long> a  = a;
-    val d = b;
+function foo(int a, long b) int {
+    val c = 5;
+    return c;
 }
     """.trimIndent()
     try {
@@ -46,7 +46,7 @@ private fun compile(string: String): String {
     val tokens = dev.mee42.lexer.lex(preprocessed)
     println("-- tokens --")
     tokens.map(Token::content).map { "$it "}.forEach(::print)
-
+    println("\n")
 
     val initialAST = parsePass1(tokens).withLibrary(standardLibrary)
 

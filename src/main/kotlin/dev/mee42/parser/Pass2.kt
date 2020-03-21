@@ -34,8 +34,17 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
 private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
     tokens.remove().checkType(OPEN_BRACKET,"parseBlock expects token stream to start with an opening bracket")
     val statements = mutableListOf<Statement>()
+    val scopedLocalVariables = mutableListOf<LocalVariable>()
     while(tokens.peek()!!.type != CLOSE_BRACKET) {
-        statements.add(parseStatement(tokens, initialAST, localVariables))
+        val statement = parseStatement(tokens, initialAST, localVariables + scopedLocalVariables)
+        if(statement is DeclareVariableStatement){
+            scopedLocalVariables.add(LocalVariable(
+                name = statement.variableName,
+                type = statement.expression.type,
+                isFinal = statement.final
+            ))
+        }
+        statements.add(statement)
     }
     tokens.remove().checkType(CLOSE_BRACKET,"illegal state")
     return Block(statements)
@@ -65,6 +74,12 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
         }
     }
     return when (first.type) {
+        INTEGER -> {
+            val str = first.content
+            // int32 is the only option as of rn
+            str.toIntOrNull()?.let { IntegerValueExpression(it, BaseType(TypeEnum.INT32)) }
+                ?: throw ParseException("can't support that type of integer", first)
+        }
         OPEN_PARENTHESES -> {
             val enclosed = parseExpression(tokens, initialAST, localVariables)
             tokens.remove().checkType(CLOSE_PARENTHESES, "expecting a closed parentheses")
@@ -117,6 +132,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 checkForOperator(firstAsLocalVariable)
             }
         }
+
         else -> TODO("can't support expressions that start with type ${first.type}")
     }
 }
@@ -172,7 +188,7 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
                 DeclareVariableStatement(
                     variableName = identifier,
                     final = isFinal,
-                    expression = parseExpression(tokens, initialAST, localVariables)
+                    expression = expression
                 )
             } else if(tokens.peek()!!.type == OPERATOR) {
                 TODO("can't support operators after identifiers as a statement")

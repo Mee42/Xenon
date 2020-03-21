@@ -3,11 +3,11 @@ package dev.mee42.asm
 import dev.mee42.asm.RegisterSize.*
 
 
-enum class RegisterSize(val bytes: Int) {
-    BIT64(8),
-    BIT32(4),
-    BIT16(2),
-    BIT8(1),
+enum class RegisterSize(val bytes: Int, val asmName: String) {
+    BIT64(8, "QWORD"),
+    BIT32(4, "DWORD"),
+    BIT16(2, "WORD"),
+    BIT8(1, "BYTE"),
 }
 
 enum class Register(val bit64: String, val bit32: String, val bit16: String, val bit8: String) {
@@ -28,7 +28,8 @@ enum class Register(val bit64: String, val bit32: String, val bit16: String, val
     R12(12),
     R13(13),
     R14(14),
-    R15(15);
+    R15(15),
+    ERROR(-1);
 
     constructor(i: Int): this("r$i","r${i}d","r${i}w","r${i}b")
     companion object {
@@ -46,7 +47,13 @@ class SizedRegister(val size: RegisterSize, val register: Register) {
     }
 }
 
-class AdvancedRegister(private val register: SizedRegister, private val isMemory: Boolean, private val offset: Int = 0) {
+class StaticValueAdvancedRegister(private val value: Long, private val size: RegisterSize): AdvancedRegister(SizedRegister(size, Register.ERROR), false) {
+    override fun toString(): String {
+        return size.asmName + " $value"
+    }
+    constructor(value: Int, size: RegisterSize): this(value.toLong(), size)
+}
+open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean, val offset: Int = 0) {
     override fun toString(): String {
         if(!isMemory) return register.toString()
         if(offset == 0) return "[$register]"
@@ -63,7 +70,12 @@ class AdvancedRegister(private val register: SizedRegister, private val isMemory
 sealed class AssemblyInstruction(private val str: String) {
     class Call(labelName: String): AssemblyInstruction("    call $labelName")
     object Ret: AssemblyInstruction("    ret")
-    class Mov(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    mov $reg1, $reg2")
+    class Mov(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    mov $reg1, $reg2") {
+        constructor(reg1: Register, reg2: Register, size: RegisterSize) : this(
+            reg1 = SizedRegister(size, reg1).advanced(),
+            reg2 = SizedRegister(size, reg2).advanced()
+        )
+    }
 
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    add $reg1, $reg2")
     class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    sub $reg1, $reg2")

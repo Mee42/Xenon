@@ -1,36 +1,33 @@
 package dev.mee42.parser
 
-import dev.mee42.Either
-import dev.mee42.asm.RegisterSize
-import dev.mee42.asm.RegisterSize.*
 import dev.mee42.lexer.Token
 
 
 sealed class Statement{
-    abstract val localVariableCount: Int
+    abstract val localVariableMaxBytes: Int
 }
 data class Block(val statements: List<Statement>): Statement() {
-    override val localVariableCount: Int
-        get() = statements.sumBy { it.localVariableCount }
+    override val localVariableMaxBytes: Int
+        get() = statements.sumBy { it.localVariableMaxBytes }
 }
 data class ReturnStatement(val expression: Expression): Statement(){
-    override val localVariableCount: Int
+    override val localVariableMaxBytes: Int
         get() = 0
 }
 object NoOpStatement: Statement() {
-    override val localVariableCount: Int
+    override val localVariableMaxBytes: Int
         get() = 0
 
     override fun toString() = "NOP"
 }
 data class ExpressionStatement(val expression: Expression): Statement() {
-    override val localVariableCount: Int
+    override val localVariableMaxBytes: Int
         get() = 0
 }
 
 data class DeclareVariableStatement(val variableName: String, val final: Boolean, val expression: Expression) : Statement() {
-    override val localVariableCount: Int
-        get() = 1
+    override val localVariableMaxBytes: Int
+        get() = expression.type.size.bytes
 }
 
 sealed class Expression(open val type: Type)
@@ -39,8 +36,12 @@ class VariableAccessExpression(val variableName: String, type: Type): Expression
         return "VARIABLE($variableName)"
     }
 }
-class DereferencePointerExpression(pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
-class IntegerValueExpression(val value: Long, override val type: BaseType) :Expression(type)
+class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
+class IntegerValueExpression(val value: Int, override val type: BaseType) :Expression(type) {
+    override fun toString(): String {
+        return "INT_VALUE($value:$type)"
+    }
+}
 
 
 
@@ -63,7 +64,11 @@ data class FunctionCallExpression(val arguments: List<Expression>,val argumentNa
 data class Argument(val name: String, val type: Type)
 
 class AssemblyFunction(name: String, arguments: List<Argument>, returnType: Type): Function(name, arguments, returnType)
-class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, val content: Block): Function(name, arguments, returnType)
+class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, val content: Block): Function(name, arguments, returnType) {
+    override fun toString(): String {
+        return "Function-$name($arguments)$returnType{$content}"
+    }
+}
 abstract class Function(val name: String, val arguments: List<Argument>, val returnType: Type)
 
 data class AST(val functions: List<Function>)
