@@ -82,7 +82,7 @@ class MathTests: StringSpec({
                 return a + b;
             }
         """.trimIndent())
-        forAll(20, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
+        forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
             print("$a + $b: ")
             run(add, a, b).toInt() shouldBe a + b
         }
@@ -93,7 +93,7 @@ class MathTests: StringSpec({
                 return a - b;
             }
         """.trimIndent())
-        forAll(20, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
+        forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
             print("$a - $b: ")
             run(sub, a, b).toInt() shouldBe a - b
         }
@@ -104,7 +104,7 @@ class MathTests: StringSpec({
                 return a * b;
             }
         """.trimIndent())
-        forAll(20, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
+        forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
             print("$a * $b: ")
             run(mult, a, b).toInt() shouldBe a * b
         }
@@ -115,7 +115,7 @@ class MathTests: StringSpec({
                 return a / b;
             }
         """.trimIndent())
-        forAll(20, smallPositiveInts.zip(smallPositiveInts.filter { it != 0 })) { (a: Int, b: Int) ->
+        forAll(10, smallPositiveInts.zip(smallPositiveInts.filter { it != 0 })) { (a: Int, b: Int) ->
             print("$a / $b: ")
             run(div, a, b).toInt() shouldBe a / b
         } // unsigned division
@@ -126,7 +126,7 @@ class MathTests: StringSpec({
                 return a / b;
             }
         """.trimIndent())
-        forAll(20, smallInts.zip(smallInts.filter { it != 0 })) { (a,b) ->
+        forAll(10, smallInts.zip(smallInts.filter { it != 0 })) { (a,b) ->
             print("$a / $b: ")
             run(div, a, b).toInt() shouldBe a / b
         }
@@ -137,7 +137,7 @@ class MathTests: StringSpec({
                 return a + b + c;
             }
         """.trimIndent())
-        forAll(30, smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
+        forAll(10, smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
             print("$a + $b + $c: ")
             run(add, a, b, c).toInt() shouldBe a + b + c
         }
@@ -148,7 +148,7 @@ class MathTests: StringSpec({
                 return (a * b) + c;
             }
         """.trimIndent())
-        forAll(30,  smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
+        forAll(10,  smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
             print("$a * $b + $c: ")
             run(addAndMult, a, b, c).toInt() shouldBe a * b + c
         }
@@ -170,7 +170,7 @@ class MainTests: StringSpec({
                 return a;
             }
         """.trimIndent())
-        forAll(30, IntGenerator) { a ->
+        forAll(10, IntGenerator) { a ->
             run(id, a).toInt() shouldBe a
         }
     }
@@ -181,11 +181,32 @@ class MainTests: StringSpec({
                 return b;
             }
         """.trimIndent())
-        forAll(30, IntGenerator) { a ->
+        forAll(10, IntGenerator) { a ->
             run(id, a).toInt() shouldBe a
         }
     }
 })
+
+class TestUByte: StringSpec({testsForType("ubyte")})
+class TestByte: StringSpec({testsForType("byte")})
+class TestUShort: StringSpec({testsForType("ushort")})
+class TestShort: StringSpec({testsForType("short")})
+class TestUInts: StringSpec({testsForType("uint")})
+class TestInts: StringSpec({testsForType("int")})
+class TestULong: StringSpec({testsForType("ulong")})
+class TestLong: StringSpec({testsForType("long")})
+
+private fun StringSpec.testsForType(type: String) {
+    "adding values of type $type" {
+        run(parse("function foo($type a, $type b) $type { return a + b }"), 7, 14).toInt() shouldBe 21
+    }
+    "using variable of type $type for id function" {
+        run(parse("function foo($type a) $type { val b = a; return b; }"), 7).toInt() shouldBe 7
+    }
+    "id function with int type $type" {
+        run(parse("function foo($type a) $type { return a }"), 7).toInt() shouldBe 7
+    }
+}
 
 private fun parse(string: String): List<AssemblyInstruction> {
     val preprocessed = dev.mee42.xpp.preprocess(string)
