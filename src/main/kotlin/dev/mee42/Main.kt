@@ -13,11 +13,12 @@ class InternalCompilerException(message: String): CompilerException(message)
 //   https://stackoverflow.com/questions/41912684/what-is-the-purpose-of-the-rbp-register-in-x86-64-assembler
 
 
+
+
 fun main() {
     val text = """
-function foo(int a, long b) int {
-    val c = 5;
-    return c;
+function addf(int a, int b) int {
+    return a + b
 }
     """.trimIndent()
     try {

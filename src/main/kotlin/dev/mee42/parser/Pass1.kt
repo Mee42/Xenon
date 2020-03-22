@@ -31,19 +31,20 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
     val functionName = tokens.remove()
         .checkType(TokenType.IDENTIFIER, "function name must be an identifier").content
 
-    val openParentheses =tokens.remove().checkType(TokenType.OPEN_PARENTHESES, "function identifier must be followed by a parentheses")
+    tokens.remove().checkType(TokenType.OPEN_PARENTHESES, "function identifier must be followed by a parentheses")
 
     val arguments = tokens.removeWhile { it.type != TokenType.CLOSE_PARENTHESES }
         .splitBy(true) { it.type == TokenType.COMMA }
         .mapIndexed { index, list ->
             if(index == 0) {
-                if(list.isEmpty()) throw ParseException("can't have empty argument list", openParentheses)
-                list
+                if(list.isEmpty()) null
+                else list
             } else {
                 if(list.size == 1) throw ParseException("can't have empty argument list", list[0])
                 list.subList(2, list.size)
             }
-        }
+        }.filterNotNull()
+
     val parsedArguments = arguments.map(::parseArgument)
     val closeParentheses = tokens.remove().checkType(TokenType.CLOSE_PARENTHESES, "illegal state")
     val returnType = parseType(tokens.removeWhile { it.type != TokenType.OPEN_BRACKET }, closeParentheses)

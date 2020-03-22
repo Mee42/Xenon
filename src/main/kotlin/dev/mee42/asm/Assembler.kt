@@ -1,6 +1,7 @@
 package dev.mee42.asm
 
 import dev.mee42.parser.*
+import kotlin.math.exp
 
 fun assemble(ast: AST):List<AssemblyInstruction> {
     return ast.functions
@@ -9,16 +10,16 @@ fun assemble(ast: AST):List<AssemblyInstruction> {
 }
 class Variable(val name: String, val type: Type, val register: AdvancedRegister)
 
-private fun stackPointerRegister(offset: Int): AdvancedRegister {
+private fun stackPointerRegister(offset: Int, size: RegisterSize): AdvancedRegister {
     return AdvancedRegister(
         register = SizedRegister(RegisterSize.BIT64, Register.BP),
         isMemory = true,
-        offset = offset
+        offset = offset,
+        size = size
     )
 }
 
 private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstruction> {
-    println("compiling function ${function.name}, ast: ${function.content}")
     return buildList {
         // these are the registers needed to call this function:
         val variableBindings = mutableListOf<Variable>()
@@ -35,12 +36,12 @@ private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstructio
         // sure
         var position = function.arguments.size * 8 + 8
         function.arguments.forEachIndexed { i, it ->
-            val register = stackPointerRegister(position)
+            val register = stackPointerRegister(position, it.type.size)
             position -= 8
             variableBindings.add(Variable(it.name, it.type, register))
-            this += AssemblyInstruction.Comment("argument $i (${it.name}) in register $register")
+            this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
         }
-        val localVariableSize = function.content.localVariableMaxBytes
+        val localVariableSize = function.content.localVariableMaxBytes.let { if(it % 16 == 0) it else it + 16 - it % 16 }
         this += AssemblyInstruction.Push(Register.BP) // push rbp so we don't lose it when we return
         this += AssemblyInstruction.Mov(
             reg1 = SizedRegister(RegisterSize.BIT64, Register.BP).advanced(),
@@ -50,26 +51,54 @@ private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstructio
             reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
             reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
         )
-
-        for(statement in function.content.statements) {
-            when (statement) {
-                is ReturnStatement -> {
-                    val expression = statement.expression
-                    this += assembleExpression(variableBindings, ast, expression, accumulatorRegister)
-                    this += AssemblyInstruction.Ret
-                }
-                is ExpressionStatement -> {
-                    this += assembleExpression(variableBindings, ast, statement.expression, accumulatorRegister)
-                }
-                else -> TODO("can't support that type of statement")
-            }
-            this += AssemblyInstruction.Comment("")
+        val returnInstructions = buildList<AssemblyInstruction> {
+            this += AssemblyInstruction.Add(
+                reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
+                reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
+            )
+            this += AssemblyInstruction.Pop(Register.BP)
+            this += AssemblyInstruction.Ret
         }
-
+        this += assembleBlock(variableBindings, ast, accumulatorRegister, function.content, -8, returnInstructions)
 
     }
 }
 
+private fun assembleBlock(variableBindings: List<Variable>, ast: AST, accumulatorRegister: Register, block: Block, topLocal: Int,returnInstructions: List<AssemblyInstruction>): List<AssemblyInstruction>  = buildList {
+    val localVariables = mutableListOf<Variable>()
+    var localVariableLocation = topLocal
+    for(statement in block.statements) {
+        when (statement) {
+            is ReturnStatement -> {
+                val expression = statement.expression
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
+                this += returnInstructions
+            }
+            is ExpressionStatement -> {
+                this += assembleExpression(variableBindings + localVariables, ast, statement.expression, accumulatorRegister)
+            }
+            is Block -> {
+                this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement, localVariableLocation, returnInstructions)
+            }
+            NoOpStatement -> {}
+            is DeclareVariableStatement -> {
+                val expression = statement.expression
+                val size = expression.type.size
+                val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size, localVariableLocation)
+                localVariableLocation -= size.bytes
+                this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
+                localVariables.add(Variable(
+                    name = statement.variableName,
+                    register = variableRegister,
+                    type = expression.type))
+                this += AssemblyInstruction.Mov(
+                    reg1 = variableRegister,
+                    reg2 = SizedRegister(size, accumulatorRegister).advanced())
+            }
+        }
+    }
+}
 
 fun AssemblyInstruction.comment(str: String): AssemblyInstruction {
     return AssemblyInstruction.CommentedLine(this, str)
@@ -86,10 +115,11 @@ private fun List<Variable>.reserveOne(type: Type): Pair<List<Variable>, SizedReg
     return (this + Variable(name,type,sized, true)) to sized
 }*/
 
-fun SizedRegister.advanced(isMemory: Boolean = false): AdvancedRegister {
+fun SizedRegister.advanced(): AdvancedRegister {
     return AdvancedRegister(
-        isMemory = isMemory,
-        register = this)
+        isMemory = false,
+        register = this,
+        size = this.size)
 }
 fun <T> buildList(block: MutableList<T>.() -> Unit): List<T> {
     val list = mutableListOf<T>()

@@ -20,8 +20,8 @@ fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: E
                     }
                     MathType.SUB -> {
                         this += AssemblyInstruction.Mov(
-                            reg1 = Register.A,
-                            reg2 = Register.B,
+                            reg1 = Register.B,
+                            reg2 = Register.A,
                             size = expression.type.size
                         )
                         this += AssemblyInstruction.Pop(Register.A)
@@ -33,18 +33,22 @@ fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: E
                     MathType.MULT -> {
                         this += AssemblyInstruction.Pop(Register.B)
                         this += AssemblyInstruction.Mul(
-                            reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced()
+                            reg1 = SizedRegister(expression.type.size, Register.B).advanced()
                         )
                     }
                     MathType.DIV -> {
+                        this += AssemblyInstruction.Xor(
+                            reg1 = SizedRegister(RegisterSize.BIT64, Register.D).advanced(),
+                            reg2 = SizedRegister(RegisterSize.BIT64, Register.D).advanced()
+                        )
                         this += AssemblyInstruction.Mov(
-                            reg1 = Register.A,
-                            reg2 = Register.B,
+                            reg1 = Register.B,
+                            reg2 = Register.A,
                             size = expression.type.size
                         )
                         this += AssemblyInstruction.Pop(Register.A)
-                        this += AssemblyInstruction.Mul(
-                            reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced()
+                        this += AssemblyInstruction.Div(
+                            reg1 = SizedRegister(expression.type.size, Register.B).advanced()
                         )
                     }
                 }
@@ -54,7 +58,7 @@ fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: E
         is VariableAccessExpression -> {
             val variable = variableBindings.first { it.name == expression.variableName }
             listOf(AssemblyInstruction.Mov(
-                reg1 = SizedRegister(variable.register.register.size, accumulatorRegister).advanced(),
+                reg1 = SizedRegister(variable.register.size, accumulatorRegister).advanced(),
                 reg2 = variable.register
             ).comment( "pulling variable ${expression.variableName}"))
         }
@@ -63,8 +67,11 @@ fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: E
                 if(expression.pointerExpression.type !is PointerType) error("assertion failed")
                 this += assembleExpression(variableBindings, ast, expression.pointerExpression, accumulatorRegister)
                 this += AssemblyInstruction.Mov(
-                    reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(false),
-                    reg2 = SizedRegister(RegisterSize.BIT64,  accumulatorRegister).advanced(true)
+                    reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
+                    reg2 = AdvancedRegister(
+                        register = SizedRegister(RegisterSize.BIT64,  accumulatorRegister),
+                        isMemory = true,
+                        size = expression.type.size)
                 )
             }
         }

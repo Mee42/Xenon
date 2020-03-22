@@ -47,13 +47,13 @@ class SizedRegister(val size: RegisterSize, val register: Register) {
     }
 }
 
-class StaticValueAdvancedRegister(private val value: Long, private val size: RegisterSize): AdvancedRegister(SizedRegister(size, Register.ERROR), false) {
+class StaticValueAdvancedRegister(private val value: Long, size: RegisterSize): AdvancedRegister(SizedRegister(size, Register.ERROR), false,size) {
     override fun toString(): String {
         return size.asmName + " $value"
     }
     constructor(value: Int, size: RegisterSize): this(value.toLong(), size)
 }
-open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean, val offset: Int = 0) {
+open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean,  val size: RegisterSize, val offset: Int = 0) {
     override fun toString(): String {
         if(!isMemory) return register.toString()
         if(offset == 0) return "[$register]"

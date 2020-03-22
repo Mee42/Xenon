@@ -9,6 +9,9 @@ plugins {
 }
 
 
+tasks.withType<Test> {
+  useJUnitPlatform()
+}
 
 repositories {
     jcenter()
@@ -16,7 +19,8 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
-//    implementation("com.google.code.gson","gson","2.8.5")
+    testImplementation("io.kotest:kotest-runner-junit5-jvm:4.0.0-BETA3") // for kotest framework
+    testImplementation("io.kotest:kotest-assertions-core-jvm:4.0.0-BETA3") // for kotest core jvm assertions
 }
 
 val compileKotlin: KotlinCompile by tasks
