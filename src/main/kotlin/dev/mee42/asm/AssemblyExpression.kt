@@ -23,7 +23,7 @@ fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: E
                             reg1 = Register.B,
                             reg2 = Register.A,
                             size = expression.type.size
-                        )
+                        ).zeroIfNeeded()
                         this += AssemblyInstruction.Pop(Register.A)
                         this += AssemblyInstruction.Sub(
                             reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),

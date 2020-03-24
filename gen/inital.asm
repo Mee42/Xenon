@@ -4,24 +4,28 @@ extern malloc
 section .text
     global main
 main:
-    push 159
-    push 170
+    push 10
+    push 20
     call add_
-    mov rbx, rax
+    ; al has a bunch of garbage data in eax and rax segments
+    ; we need to upcast it
+    ; to an integer
+    movsx rbx, al ; move with sign extension
     call println
     add rsp, 16
     ret
-add_: ; return value in register eax
-    ; argument 0 (a) in register DWORD [rbp + 24]
-    ; argument 1 (b) in register DWORD [rbp + 16]
+
+add_: ; return value in register al
+    ; argument 0 (a) in register BYTE [rbp + 24]
+    ; argument 1 (b) in register BYTE [rbp + 16]
     push rbp
     mov rbp, rsp
     sub rsp, QWORD 0
-    mov eax, [rbp + 24] ; pulling variable a
+    mov al, [rbp + 24] ; pulling variable a
     push rax
-    mov eax, [rbp + 16] ; pulling variable b
+    mov al, [rbp + 16] ; pulling variable b
     pop rbx
-    add eax, ebx
+    add al, bl
     add rsp, QWORD 0
     pop rbp
     ret

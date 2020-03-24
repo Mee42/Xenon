@@ -17,7 +17,8 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main() {
     val text = """
-function addf(int a, int b) int {
+        
+function foo(byte a, byte b) byte {
     return a + b
 }
     """.trimIndent()

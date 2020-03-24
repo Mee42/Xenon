@@ -64,7 +64,11 @@ private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstructio
     }
 }
 
-private fun assembleBlock(variableBindings: List<Variable>, ast: AST, accumulatorRegister: Register, block: Block, topLocal: Int,returnInstructions: List<AssemblyInstruction>): List<AssemblyInstruction>  = buildList {
+private fun assembleBlock(variableBindings: List<Variable>,
+                          ast: AST, accumulatorRegister: Register,
+                          block: Block,
+                          topLocal: Int,
+                          returnInstructions: List<AssemblyInstruction>): List<AssemblyInstruction>  = buildList {
     val localVariables = mutableListOf<Variable>()
     var localVariableLocation = topLocal
     for(statement in block.statements) {
@@ -80,7 +84,7 @@ private fun assembleBlock(variableBindings: List<Variable>, ast: AST, accumulato
             is Block -> {
                 this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement, localVariableLocation, returnInstructions)
             }
-            NoOpStatement -> {}
+            NoOpStatement -> this += AssemblyInstruction.Nop
             is DeclareVariableStatement -> {
                 val expression = statement.expression
                 val size = expression.type.size
@@ -94,9 +98,20 @@ private fun assembleBlock(variableBindings: List<Variable>, ast: AST, accumulato
                     type = expression.type))
                 this += AssemblyInstruction.Mov(
                     reg1 = variableRegister,
-                    reg2 = SizedRegister(size, accumulatorRegister).advanced())
+                    reg2 = SizedRegister(size, accumulatorRegister).advanced()).zeroIfNeeded()
             }
         }
+    }
+}
+
+fun AssemblyInstruction.Mov.zeroIfNeeded(): List<AssemblyInstruction> {
+    return when {
+        reg1.isMemory -> listOf(this)
+        reg1.size == RegisterSize.BIT16 || reg1.size == RegisterSize.BIT8 -> listOf(
+            AssemblyInstruction.Xor(reg1 = SizedRegister(RegisterSize.BIT64, reg1.register.register).advanced(),
+                                    reg2 = SizedRegister(RegisterSize.BIT64, reg1.register.register).advanced()),
+            this)
+        else -> listOf(this)
     }
 }
 
@@ -121,7 +136,7 @@ fun SizedRegister.advanced(): AdvancedRegister {
         register = this,
         size = this.size)
 }
-fun <T> buildList(block: MutableList<T>.() -> Unit): List<T> {
+inline fun <reified T> buildList(crossinline block: MutableList<T>.() -> Unit): List<T> {
     val list = mutableListOf<T>()
     block(list)
     return list

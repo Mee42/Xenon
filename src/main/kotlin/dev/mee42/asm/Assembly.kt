@@ -70,7 +70,9 @@ open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean, 
 sealed class AssemblyInstruction(private val str: String) {
     class Call(labelName: String): AssemblyInstruction("    call $labelName")
     object Ret: AssemblyInstruction("    ret")
-    class Mov(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    mov $reg1, $reg2") {
+    object Nop: AssemblyInstruction("    nop")
+
+    class Mov(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("    mov $reg1, $reg2") {
         constructor(reg1: Register, reg2: Register, size: RegisterSize) : this(
             reg1 = SizedRegister(size, reg1).advanced(),
             reg2 = SizedRegister(size, reg2).advanced()
