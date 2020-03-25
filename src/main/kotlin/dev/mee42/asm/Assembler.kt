@@ -108,7 +108,7 @@ fun AssemblyInstruction.Mov.zeroIfNeeded(): List<AssemblyInstruction> {
     return when {
         reg1.isMemory -> listOf(this)
         reg1.size == RegisterSize.BIT16 || reg1.size == RegisterSize.BIT8 -> listOf(
-            AssemblyInstruction.Xor(reg1 = SizedRegister(RegisterSize.BIT64, reg1.register.register).advanced(),
+            AssemblyInstruction.Xor(reg1 = SizedRegister(RegisterSize.BIT64, reg1.register.register),
                                     reg2 = SizedRegister(RegisterSize.BIT64, reg1.register.register).advanced()),
             this)
         else -> listOf(this)

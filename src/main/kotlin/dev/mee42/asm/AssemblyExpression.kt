@@ -37,19 +37,42 @@ fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: E
                         )
                     }
                     MathType.DIV -> {
+                        /*
+                        xor rdx, rdx
+                        mov bl, al
+
+                         */
                         this += AssemblyInstruction.Xor(
-                            reg1 = SizedRegister(RegisterSize.BIT64, Register.D).advanced(),
+                            reg1 = SizedRegister(RegisterSize.BIT64, Register.D),
                             reg2 = SizedRegister(RegisterSize.BIT64, Register.D).advanced()
                         )
-                        this += AssemblyInstruction.Mov(
-                            reg1 = Register.B,
-                            reg2 = Register.A,
-                            size = expression.type.size
-                        )
+
+                        val type = expression.type
+                        type as? BaseType ?: error("debug this later")
+                        if(expression.type.size == RegisterSize.BIT8) {
+                            if(type.type.isUnsigned) {
+                                this += AssemblyInstruction.MovZX(
+                                    reg1 = SizedRegister(RegisterSize.BIT16, Register.B),
+                                    reg2  = SizedRegister(RegisterSize.BIT8, Register.A).advanced()
+                                )
+                            } else {
+                                this += AssemblyInstruction.MovSX(
+                                    reg1 = SizedRegister(RegisterSize.BIT16, Register.B),
+                                    reg2  = SizedRegister(RegisterSize.BIT8, Register.A).advanced()
+                                )
+                            }
+                        } else {
+                            this += AssemblyInstruction.Mov(
+                                reg1 = Register.B,
+                                reg2 = Register.A,
+                                size = expression.type.size
+                            )
+                        }
                         this += AssemblyInstruction.Pop(Register.A)
-                        this += AssemblyInstruction.Div(
-                            reg1 = SizedRegister(expression.type.size, Register.B).advanced()
-                        )
+                        this += AssemblyInstruction.divOf(
+                            size = type.size,
+                            signed = !type.type.isUnsigned,
+                            divisor = SizedRegister(type.size, Register.B))
                     }
                 }
 

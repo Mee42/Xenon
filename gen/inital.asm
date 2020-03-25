@@ -3,6 +3,7 @@ extern malloc
 ; display/i $pc
 section .text
     global main
+
 main:
     push 10
     push 20

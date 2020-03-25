@@ -1,12 +1,25 @@
 package dev.mee42.nasm
 
 import dev.mee42.asm.AssemblyInstruction
+import dev.mee42.asm.Register
+import dev.mee42.asm.RegisterSize
+import dev.mee42.asm.SizedRegister
+import dev.mee42.parser.TypeEnum
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, vararg arguments: Int) =
+    run(returnType, asm, arguments.map { it.toLong() })
+
+fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, vararg arguments: Long) =
+    run(returnType, asm, arguments.toList())
+
+fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>) =
+    run(returnType, asm, emptyList())
+
 // TODO fix this up to do type checks
 /** writes the assembly to a file, calls the function, tells you what the result is. Throws an exception if compilation fails*/
-fun run(asm: List<AssemblyInstruction>, vararg arguments: Int): String {
+private fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, arguments: List<Long>): String {
     val id = randomID()
     println(id)
     // write it to a file
@@ -26,9 +39,31 @@ main:
     for(argument in arguments) {
         stringContent.append("    push $argument\n")
     }
-    stringContent.append("    call foo\n    add rsp, ")
-    stringContent.append(arguments.size * 8)
-    stringContent.append("\n    mov rbx, rax\n    call println\n    mov rax, 0\n    ret\n\n\n")
+    stringContent.append("""
+    call foo
+    add rsp, ${arguments.size * 8}
+    
+    """.trimIndent())
+
+    val inputRegister = SizedRegister(returnType.registerSize, Register.A)
+    val movLine =
+        if(returnType.isUnsigned && returnType.registerSize in listOf(RegisterSize.BIT8, RegisterSize.BIT16)) {
+            "movzx rbx, $inputRegister"
+        } else if(returnType.isUnsigned) {
+            "mov ${SizedRegister(returnType.registerSize, Register.B)}, $inputRegister" // zero-extended mov is implicit
+        } else if(returnType.registerSize == RegisterSize.BIT64)/*returnType is signed*/ {
+            "mov rbx, $inputRegister" // it's the same size, no movxs needed
+        } else {
+            "movsx rbx, $inputRegister" // inputRegister is smaller then rbx, needs
+        }
+
+    stringContent.append("""
+    $movLine
+    call println
+    mov rax, 0
+    ret
+
+    """.trimIndent())
     stringContent.append(asm.fold("") {a,b  -> "$a\n$b" })
     stringContent.append("\n\n")
     stringContent.append("""

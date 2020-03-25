@@ -67,7 +67,7 @@ open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean, 
     }
 }
 
-sealed class AssemblyInstruction(private val str: String) {
+sealed class AssemblyInstruction(open val str: String) {
     class Call(labelName: String): AssemblyInstruction("    call $labelName")
     object Ret: AssemblyInstruction("    ret")
     object Nop: AssemblyInstruction("    nop")
@@ -78,23 +78,96 @@ sealed class AssemblyInstruction(private val str: String) {
             reg2 = SizedRegister(size, reg2).advanced()
         )
     }
+    class MovSX(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("    movsx $reg1, $reg2")
+    class MovZX(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("    movzx $reg1, $reg2")
+
 
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    add $reg1, $reg2")
     class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    sub $reg1, $reg2")
+
+    // NOTE: multiplication trashes the d register
+    class IMul(reg1: AdvancedRegister): AssemblyInstruction("    imul $reg1")
     class Mul(reg1: AdvancedRegister): AssemblyInstruction("    mul $reg1")
+    // NOTE: you should use the helper function divOf to proper setup the d register
     class Div(reg1: AdvancedRegister): AssemblyInstruction("    div $reg1")
+    class IDiv(reg1: AdvancedRegister): AssemblyInstruction("    idiv $reg1")
+
+    object ConvertToOctoword: AssemblyInstruction("    cqo")
+    object ConvertToQuadword: AssemblyInstruction("    cqo")
+    object ConvertToDoublword: AssemblyInstruction("    cwd")
 
     class Push(register: Register): AssemblyInstruction("    push ${SizedRegister(BIT64, register)}")
     class Pop(register: Register): AssemblyInstruction("    pop ${SizedRegister(BIT64, register)}")
 
-    class Xor(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    xor $reg1, $reg2")
+    class Custom(str: String): AssemblyInstruction("    $str")
 
+    class Xor(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("    xor $reg1, $reg2") {
+        companion object {
+            fun useToZero(register: SizedRegister): Xor {
+                return Xor(
+                    reg1 = register,
+                    reg2 = register.advanced()
+                )
+            }
+        }
+    }
     class Label(name: String): AssemblyInstruction("$name:")
     class Jump(to: String): AssemblyInstruction("    jmp $to")
     class Comment(content: String): AssemblyInstruction("    ; $content")
     class CommentedLine(line: AssemblyInstruction, comment: String): AssemblyInstruction("$line ; $comment")
 
 
-
     override fun toString() =  str
+
+
+    companion object {
+        // note: will trash rdx
+        // note: the A register better be prepared better have the right
+        fun divOf(size: RegisterSize, divisor: SizedRegister, signed: Boolean) : List<AssemblyInstruction> {
+            return when(size){
+                BIT64 -> buildList {
+                    if(signed){
+                        this += ConvertToOctoword
+                        this += IDiv(divisor.advanced())
+                    } else {
+                        this += Xor.useToZero(SizedRegister(BIT64, Register.D))
+                        this += Div(divisor.advanced())
+                    }
+                }
+                BIT32 -> buildList {
+                    if(signed) {
+                        this += ConvertToQuadword
+                        this += IDiv(divisor.advanced())
+                    } else {
+                        this += Xor.useToZero(SizedRegister(BIT32, Register.D))
+                        this += Div(divisor.advanced())
+                    }
+                }
+                BIT16 -> buildList {
+                    if(signed) {
+                        this += ConvertToDoublword
+                        this += IDiv(divisor.advanced())
+                    } else {
+                        this += Xor.useToZero(SizedRegister(size, Register.D))
+                        this += Div(divisor.advanced())
+                    }
+                }
+                BIT8 -> buildList {
+                    if(signed) {
+                        this += MovSX(
+                            reg1 = SizedRegister(BIT16, divisor.register),
+                            reg2 = SizedRegister(BIT8, divisor.register).advanced()
+                        )
+                        this += IDiv(divisor.advanced())
+                    } else {
+                        this += Custom("xor ah, ah")
+                        this += Div(divisor.advanced())
+                    }
+                }
+            }
+        }
+    }
+
+
+
 }

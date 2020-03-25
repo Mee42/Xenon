@@ -3,6 +3,7 @@ package dev.mee42
 import dev.mee42.asm.AssemblyInstruction
 import dev.mee42.asm.assemble
 import dev.mee42.nasm.run
+import dev.mee42.parser.TypeEnum
 import dev.mee42.parser.parsePass1
 import dev.mee42.parser.parsePass2
 import io.kotest.core.spec.style.StringSpec
@@ -76,7 +77,7 @@ private fun <A> forAll(iterations: Int, generator: Generator<A>, block: (A) -> U
 
 
 class MathTests: StringSpec({
-    "addition" {
+    "int addition" {
         val add = parse("""
             function foo(int a, int b) int {
                 return a + b;
@@ -84,10 +85,10 @@ class MathTests: StringSpec({
         """.trimIndent())
         forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
             print("$a + $b: ")
-            run(add, a, b).toInt() shouldBe a + b
+            run(TypeEnum.of("int"), add, a, b).toInt() shouldBe a + b
         }
     }
-    "subtraction" {
+    "int subtraction" {
         val sub = parse("""
             function foo(int a, int b) int {
                 return a - b;
@@ -95,10 +96,10 @@ class MathTests: StringSpec({
         """.trimIndent())
         forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
             print("$a - $b: ")
-            run(sub, a, b).toInt() shouldBe a - b
+            run(TypeEnum.of("int"),sub, a, b).toInt() shouldBe a - b
         }
     }
-    "multiplication" {
+    "int multiplication" {
         val mult = parse("""
             function foo(int a, int b) int {
                 return a * b;
@@ -106,29 +107,29 @@ class MathTests: StringSpec({
         """.trimIndent())
         forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
             print("$a * $b: ")
-            run(mult, a, b).toInt() shouldBe a * b
+            run(TypeEnum.of("int"), mult, a, b).toInt() shouldBe a * b
         }
     }
     "unsigned division" {
         val div = parse("""
-            function foo(uint a, uint b) int {
+            function foo(uint a, uint b) uint {
                 return a / b;
             }
         """.trimIndent())
         forAll(10, smallPositiveInts.zip(smallPositiveInts.filter { it != 0 })) { (a: Int, b: Int) ->
             print("$a / $b: ")
-            run(div, a, b).toInt() shouldBe a / b
+            run(TypeEnum.of("uint"), div, a, b).toInt() shouldBe a / b
         } // unsigned division
     }
     "signed division" {
         val div = parse("""
-            function foo(int a, int b) int {
+            function foo(long a, long b) long {
                 return a / b;
             }
         """.trimIndent())
         forAll(10, smallInts.zip(smallInts.filter { it != 0 })) { (a,b) ->
             print("$a / $b: ")
-            run(div, a, b).toInt() shouldBe a / b
+            run(TypeEnum.of("long"), div, a, b).toInt() shouldBe a / b
         }
     }
     "adding 3 elements" {
@@ -139,10 +140,11 @@ class MathTests: StringSpec({
         """.trimIndent())
         forAll(10, smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
             print("$a + $b + $c: ")
-            run(add, a, b, c).toInt() shouldBe a + b + c
+            run(TypeEnum.of("int"), add, a, b, c).toInt() shouldBe a + b + c
         }
     }
     "add and multiply" {
+
         val addAndMult = parse("""
             function foo(int a, int b, int c) int {
                 return (a * b) + c;
@@ -150,7 +152,7 @@ class MathTests: StringSpec({
         """.trimIndent())
         forAll(10,  smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
             print("$a * $b + $c: ")
-            run(addAndMult, a, b, c).toInt() shouldBe a * b + c
+            run(TypeEnum.of("int"), addAndMult, a, b, c).toInt() shouldBe a * b + c
         }
     }
 
@@ -158,7 +160,7 @@ class MathTests: StringSpec({
 
 class MainTests: StringSpec({
     "basic program compiles" {
-        run(parse("""
+        run(TypeEnum.of("int"), parse("""
             function foo() int {
                 return 7;
             }
@@ -171,7 +173,7 @@ class MainTests: StringSpec({
             }
         """.trimIndent())
         forAll(10, IntGenerator) { a ->
-            run(id, a).toInt() shouldBe a
+            run(TypeEnum.of("int"), id, a).toInt() shouldBe a
         }
     }
     "id functions with a static variable" {
@@ -182,7 +184,7 @@ class MainTests: StringSpec({
             }
         """.trimIndent())
         forAll(10, IntGenerator) { a ->
-            run(id, a).toInt() shouldBe a
+            run(TypeEnum.of("int"), id, a).toInt() shouldBe a
         }
     }
 })
@@ -197,14 +199,34 @@ class TestULong: StringSpec({testsForType("ulong")})
 class TestLong: StringSpec({testsForType("long")})
 
 private fun StringSpec.testsForType(type: String) {
-    "adding values of type $type" {
-        run(parse("function foo($type a, $type b) $type { return a + b }"), 7, 14).toInt() shouldBe 21
-    }
+    val typef = TypeEnum.of(type)
     "using variable of type $type for id function" {
-        run(parse("function foo($type a) $type { val b = a; return b; }"), 7).toInt() shouldBe 7
+        run(typef,parse("function foo($type a) $type { val b = a; return b; }"), 7).toInt() shouldBe 7
     }
     "id function with int type $type" {
-        run(parse("function foo($type a) $type { return a }"), 7).toInt() shouldBe 7
+        run(typef,parse("function foo($type a) $type { return a }"), 7).toInt() shouldBe 7
+    }
+    "adding integers of type $type" {
+        val program = parse("function foo($type a, $type b) $type { return a + b }")
+        for ((a, b) in mapOf(
+            0 to 0,
+            7 to 0,
+            0 to 7,
+            7 to 7
+        )) {
+            // these will fit into every data type
+            run(typef, program, a, b).toInt() shouldBe a + b
+        }
+        for(i in 0..5) {
+            // pick two random numbers, make sure the addition fits into the result, then do the operaton
+            val a = typef.numberRange.random()
+            val b = typef.numberRange.random()
+            if((a + b) !in typef.numberRange) continue
+            run(typef,program, a, b).toLong() shouldBe a + b
+        }
+    }
+    "subtracting integers of type $type" {
+
     }
 }
 
