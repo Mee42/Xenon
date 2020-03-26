@@ -4,48 +4,52 @@ extern malloc
 section .text
     global main
 
-main:
-    push 10
-    push 20
-    call add_
-    ; al has a bunch of garbage data in eax and rax segments
-    ; we need to upcast it
-    ; to an integer
-    movsx rbx, al ; move with sign extension
-    call println
-    add rsp, 16
-    ret
-
-add_: ; return value in register al
-    ; argument 0 (a) in register BYTE [rbp + 24]
-    ; argument 1 (b) in register BYTE [rbp + 16]
+main: ; return value in register eax
     push rbp
     mov rbp, rsp
     sub rsp, QWORD 0
-    mov al, [rbp + 24] ; pulling variable a
-    push rax
-    mov al, [rbp + 16] ; pulling variable b
-    pop rbx
-    add al, bl
+    mov eax, DWORD 1000000000
+    push rax ; argument bytes
+    call malloc_int
+    add rsp, QWORD 8
+    push rax ; argument ptr
+    call println_ptr
+    add rsp, QWORD 8
+    nop
+    call main
     add rsp, QWORD 0
+    nop
+
+
+; standard library asm functions
+malloc_int:
+    push rbp
+    mov rbp, rsp
+    mov edi, [rbp + 16] ; pulling the first argument
+    call malloc
     pop rbp
     ret
 
-println: ; function println(int64 i)
-          ; returns the output of printf
-          ; i is stored in rbx
-          ; this overwrites rdi and rsi
+println_ptr:
+    mov rdi, string_ptr
+    jmp println_main
+
+println:
     mov rdi, string
-    mov rsi, rbx
-    mov rax, 0
-    push rcx
-    push rdx
+    jmp println_main
+
+println_main: ; takes in a 64-bit argument and prints it
+    push rbp
+    mov rbp, rsp
+    ;mov rdi, string
+    mov rsi, [rbp + 16]
+    xor rax, rax
     call printf
-    pop rdx
-    pop rcx
-    mov rax, rbx
+    xor rax, rax
+    pop rbp
     ret
 
 
 section .data
     string: db "%i", 10, 0
+    string_ptr: db "%p", 10, 0

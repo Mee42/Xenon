@@ -1,0 +1,8 @@
+function main() int {
+    return count(1)
+}
+
+function count(int i) int {
+    println(i)
+    return count(i + 1)
+}

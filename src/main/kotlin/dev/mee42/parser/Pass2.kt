@@ -99,7 +99,10 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 while (true) {
                     if (arguments.isEmpty()) {
                         val token = tokens.peek() ?: error("no")
-                        if (token.type == CLOSE_PARENTHESES) break
+                        if (token.type == CLOSE_PARENTHESES) {
+                            tokens.remove() // remove the close parentheses
+                            break
+                        }
                         if (token.type == COMMA) throw ParseException("not expecting a comma", token)
                     } else {
                         val token = tokens.remove()

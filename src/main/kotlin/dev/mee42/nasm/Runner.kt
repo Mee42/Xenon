@@ -102,6 +102,7 @@ println: ; function println(int64 i)
     """.trimIndent())
 
     file.writeText(stringContent.toString())
+
     val pb = ProcessBuilder("bash","-c", "nasm -felf64 $filePath.asm -o $filePath.o && gcc $filePath.o -o $filePath -no-pie")
     pb.inheritIO()
     val result = pb.start().waitFor()
@@ -118,7 +119,7 @@ println: ; function println(int64 i)
     return stdout
 }
 
-private fun randomID(): String {
+fun randomID(): String {
     val s = StringBuilder()
     for(i in 0 until 10)
         s.append(('a'..'z').random())
