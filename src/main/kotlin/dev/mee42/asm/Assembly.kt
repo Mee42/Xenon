@@ -85,10 +85,8 @@ sealed class AssemblyInstruction(open val str: String) {
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    add $reg1, $reg2")
     class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("    sub $reg1, $reg2")
 
-    // NOTE: multiplication trashes the d register
     class IMul(reg1: AdvancedRegister): AssemblyInstruction("    imul $reg1")
     class Mul(reg1: AdvancedRegister): AssemblyInstruction("    mul $reg1")
-    // NOTE: you should use the helper function divOf to proper setup the d register
     class Div(reg1: AdvancedRegister): AssemblyInstruction("    div $reg1")
     class IDiv(reg1: AdvancedRegister): AssemblyInstruction("    idiv $reg1")
 

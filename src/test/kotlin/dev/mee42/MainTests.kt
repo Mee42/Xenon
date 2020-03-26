@@ -8,7 +8,7 @@ import dev.mee42.parser.parsePass1
 import dev.mee42.parser.parsePass2
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.*
-import java.math.BigInteger
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 private interface Generator<A> {
@@ -226,20 +226,36 @@ private fun StringSpec.testsForType(type: String) {
                 // these will fit into every data type
                 run(typef, program, a, b).toLong() shouldBe op(a,b)
             }
-            for(i in 0..5) {
+
+            doTimes(5, 100) {
                 // pick two random numbers, make sure the addition fits into the result, then do the operaton
-                val a = typef.numberRange.random()
-                val b = typef.numberRange.random()
-                if(name == "dividing" && b == 0L) continue
+                val a = if(name == "multiplying") typef.numberRange.smallRange.random() else typef.numberRange.random()
+                val b = if(name == "multiplying") typef.numberRange.smallRange.random() else typef.numberRange.random()
+                if(name == "dividing" && b == 0L) return@doTimes false
 
                 val result = op(a,b)
-                if(result !in typef.numberRange) continue
+                if(result !in typef.numberRange) return@doTimes false
                 val bigArgs = type == "long" || type == "ulong"
                 run(typef,program, a, b, argumentsAreBig = bigArgs).toLong() shouldBe result
+                return@doTimes true
             }
         }
     }
 }
+
+private val LongRange.smallRange
+    get() = sqrt(start.toDouble()).toLong()..sqrt(last.toDouble()).toLong()
+
+private inline fun doTimes(i: Int,max: Int, block: () -> Boolean) {
+    var index = 0
+    var count = 0
+    while(index < i) {
+        if(block()) index++
+        count++
+        if(count > max) error("reached max")
+    }
+}
+
 private infix fun <A,B,C> Pair<A,B>.to3(other: C): Triple<A,B,C> = Triple(first, second, other)
 
 private fun parse(string: String): List<AssemblyInstruction> {
