@@ -8,18 +8,18 @@ import dev.mee42.parser.TypeEnum
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, vararg arguments: Int) =
-    run(returnType, asm, arguments.map { it.toLong() })
+fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, vararg arguments: Int, argumentsAreBig: Boolean = false) =
+    run(returnType, asm, arguments.map { it.toLong() }, argumentsAreBig)
 
-fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, vararg arguments: Long) =
-    run(returnType, asm, arguments.toList())
+fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, vararg arguments: Long, argumentsAreBig: Boolean = false) =
+    run(returnType, asm, arguments.toList(), argumentsAreBig)
 
-fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>) =
-    run(returnType, asm, emptyList())
+fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, argumentsAreBig: Boolean = false) =
+    run(returnType, asm, emptyList(), argumentsAreBig)
 
 // TODO fix this up to do type checks
 /** writes the assembly to a file, calls the function, tells you what the result is. Throws an exception if compilation fails*/
-private fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, arguments: List<Long>): String {
+private fun run(returnType: TypeEnum, asm: List<AssemblyInstruction>, arguments: List<Long>, argumentsAreBig: Boolean): String {
     val id = randomID()
     println(id)
     // write it to a file
@@ -36,14 +36,21 @@ section .text
 main:
 
     """.trimIndent())
-    for(argument in arguments) {
-        stringContent.append("    push $argument\n")
+
+    for (argument in arguments) {
+        if(argumentsAreBig) {
+            stringContent.append("    mov rax, $argument\n    push rax\n")
+        } else {
+            stringContent.append("    push $argument\n")
+        }
     }
-    stringContent.append("""
+
+        stringContent.append("""
     call foo
     add rsp, ${arguments.size * 8}
     
     """.trimIndent())
+
 
     val inputRegister = SizedRegister(returnType.registerSize, Register.A)
     val movLine =
@@ -84,10 +91,16 @@ println: ; function println(int64 i)
     ret
 
 
-section .data
-    string: db "%i", 10, 0
-
     """.trimIndent())
+    val printfFormatter = when(returnType.isUnsigned) {
+        true -> "%lu"
+        false -> "%li"
+    }
+    stringContent.append("""
+        section .data
+            string: db "$printfFormatter", 10, 0
+    """.trimIndent())
+
     file.writeText(stringContent.toString())
     val pb = ProcessBuilder("bash","-c", "nasm -felf64 $filePath.asm -o $filePath.o && gcc $filePath.o -o $filePath -no-pie")
     pb.inheritIO()

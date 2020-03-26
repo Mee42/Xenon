@@ -8,6 +8,7 @@ import dev.mee42.parser.parsePass1
 import dev.mee42.parser.parsePass2
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.*
+import java.math.BigInteger
 import kotlin.random.Random
 
 private interface Generator<A> {
@@ -75,7 +76,7 @@ private fun <A> forAll(iterations: Int, generator: Generator<A>, block: (A) -> U
     generator.dynamic().take( iterations - generator.static().size).forEach(block)
 }
 
-
+/*
 class MathTests: StringSpec({
     "int addition" {
         val add = parse("""
@@ -157,7 +158,7 @@ class MathTests: StringSpec({
     }
 
 })
-
+*/
 class MainTests: StringSpec({
     "basic program compiles" {
         run(TypeEnum.of("int"), parse("""
@@ -206,29 +207,40 @@ private fun StringSpec.testsForType(type: String) {
     "id function with int type $type" {
         run(typef,parse("function foo($type a) $type { return a }"), 7).toInt() shouldBe 7
     }
-    "adding integers of type $type" {
-        val program = parse("function foo($type a, $type b) $type { return a + b }")
-        for ((a, b) in mapOf(
-            0 to 0,
-            7 to 0,
-            0 to 7,
-            7 to 7
-        )) {
-            // these will fit into every data type
-            run(typef, program, a, b).toInt() shouldBe a + b
-        }
-        for(i in 0..5) {
-            // pick two random numbers, make sure the addition fits into the result, then do the operaton
-            val a = typef.numberRange.random()
-            val b = typef.numberRange.random()
-            if((a + b) !in typef.numberRange) continue
-            run(typef,program, a, b).toLong() shouldBe a + b
-        }
-    }
-    "subtracting integers of type $type" {
+    for((name, operator, op) in listOf<Triple<String, String, (Long, Long) -> Long>>(
+        "adding" to "+" to3 Long::plus,
+        "subtracting" to "-" to3 Long::minus,
+        "multiplying" to "*" to3 Long::times,
+        "dividing" to "/" to3 Long::div
+    )) {
+        "$name integers of type $type" {
+            val program = parse("function foo($type a, $type b) $type { return a $operator b }")
+            for ((a, b) in mapOf(
+                0L to 0L,
+                7L to 0L,
+                0L to 7L,
+                7L to 7L
+            )) {
+                if(name == "dividing" && b == 0L) continue
+                if(typef.isUnsigned && op(a,b) < 0) continue
+                // these will fit into every data type
+                run(typef, program, a, b).toLong() shouldBe op(a,b)
+            }
+            for(i in 0..5) {
+                // pick two random numbers, make sure the addition fits into the result, then do the operaton
+                val a = typef.numberRange.random()
+                val b = typef.numberRange.random()
+                if(name == "dividing" && b == 0L) continue
 
+                val result = op(a,b)
+                if(result !in typef.numberRange) continue
+                val bigArgs = type == "long" || type == "ulong"
+                run(typef,program, a, b, argumentsAreBig = bigArgs).toLong() shouldBe result
+            }
+        }
     }
 }
+private infix fun <A,B,C> Pair<A,B>.to3(other: C): Triple<A,B,C> = Triple(first, second, other)
 
 private fun parse(string: String): List<AssemblyInstruction> {
     val preprocessed = dev.mee42.xpp.preprocess(string)

@@ -93,7 +93,7 @@ sealed class AssemblyInstruction(open val str: String) {
     class IDiv(reg1: AdvancedRegister): AssemblyInstruction("    idiv $reg1")
 
     object ConvertToOctoword: AssemblyInstruction("    cqo")
-    object ConvertToQuadword: AssemblyInstruction("    cqo")
+    object ConvertToQuadword: AssemblyInstruction("    cdq")
     object ConvertToDoublword: AssemblyInstruction("    cwd")
 
     class Push(register: Register): AssemblyInstruction("    push ${SizedRegister(BIT64, register)}")
@@ -155,8 +155,8 @@ sealed class AssemblyInstruction(open val str: String) {
                 BIT8 -> buildList {
                     if(signed) {
                         this += MovSX(
-                            reg1 = SizedRegister(BIT16, divisor.register),
-                            reg2 = SizedRegister(BIT8, divisor.register).advanced()
+                            reg1 = SizedRegister(BIT16, Register.A),
+                            reg2 = SizedRegister(BIT8, Register.A).advanced()
                         )
                         this += IDiv(divisor.advanced())
                     } else {
