@@ -13,12 +13,13 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main(args: Array<String>) {
     val file = File(args.firstOrNull() ?: error("you need to specify a file"))
-    run(file.readText(Charsets.UTF_8))
+    run(file.readText(Charsets.UTF_8), stdlib)
 }
-
+/*
 val standardLibrary = listOf(
     InitialFunction(
         name = "println",
+        id = "",
         arguments = listOf(Argument(
             name = "i",
             type = BaseType(TypeEnum.INT32)
@@ -29,6 +30,7 @@ val standardLibrary = listOf(
     ),
     InitialFunction(
         name = "println_ptr",
+        id = "",
         arguments = listOf(Argument(
             name = "ptr",
             type = PointerType(BaseType(TypeEnum.INT32))
@@ -38,7 +40,27 @@ val standardLibrary = listOf(
         attributes = emptyList()
     ),
     InitialFunction(
+        name = "print",
+        id = "",
+        arguments = listOf(Argument(
+            name = "c",
+            type = BaseType(TypeEnum.INT32)
+        )),
+        returnType = BaseType(TypeEnum.VOID),
+        content = null,
+        attributes = emptyList()
+    ),
+    InitialFunction(
+        name = "print_newline",
+        id = "",
+        arguments = emptyList(),
+        returnType = BaseType(TypeEnum.VOID),
+        content = null,
+        attributes = emptyList()
+    ),
+    InitialFunction(
         name = "malloc_int",
+        id = "",
         arguments = listOf(Argument(
             name = "bytes",
             type = BaseType(TypeEnum.INT32)
@@ -48,8 +70,10 @@ val standardLibrary = listOf(
         attributes = emptyList()
     )
 )
+*/
 
-private fun run(xenon: String) {
+
+private fun run(xenon: String, stdlib: XenonLibrary) {
     val id = randomID()
     System.err.println("running, id: $id")
     val compiled = compile(xenon)
@@ -61,40 +85,14 @@ section .text
     global main
 
 [[copy]]
+ 
 
 
-; standard library asm functions
-malloc_int:
-    push rbp
-    mov rbp, rsp
-    mov edi, [rbp + 16] ; pulling the first argument
-    call malloc
-    pop rbp
-    ret
+[[library_text]]
 
-println_ptr:
-    mov rdi, string_ptr
-    jmp println_main
-
-println:
-    mov rdi, string
-    jmp println_main
-
-println_main: ; takes in a 64-bit argument and prints it
-    push rbp
-    mov rbp, rsp
-    ;mov rdi, string
-    mov rsi, [rbp + 16]
-    xor rax, rax
-    call printf
-    xor rax, rax
-    pop rbp
-    ret
 
 section .data
-    string: db "%i", 10, 0
-    string_ptr: db "%p", 10, 0
-
+[[library_data]]
 
     """.trimIndent()
 
@@ -102,7 +100,10 @@ section .data
     val filePath = "gen/tests/$id/$id"
     val file = File("$filePath.asm")
     val program = compiled.fold("") {a,b  -> "$a\n$b" }.trim()
-    file.writeText(stringContent.replace("[[copy]]", program))
+    val libraryText = stdlib.functions.joinToString("\n\n") { it.assembly } + "\n\n" + stdlib.extraText
+    file.writeText(stringContent.replace("[[copy]]", program)
+                                .replace("[[library_text]]",libraryText)
+                                .replace("[[library_data]]", stdlib.extraData))
 
     val pb = ProcessBuilder("bash","-c", "nasm -felf64 $filePath.asm -o $filePath.o && gcc $filePath.o -o $filePath -no-pie")
     pb.inheritIO()
@@ -129,7 +130,7 @@ private fun compile(string: String): List<AssemblyInstruction> {
 //    tokens.map(Token::content).map { "$it "}.forEach(::print)
 //    println("\n")
 
-    val initialAST = parsePass1(tokens).withLibrary(standardLibrary)
+    val initialAST = parsePass1(tokens).withOther(InitialAST(stdlib.functions.map { it.toInitialFunction() }))
 
     val ast = parsePass2(initialAST)
 

@@ -1,0 +1,31 @@
+function main() int {
+    return fizzbuzz(1)
+}
+
+function fizzbuzz(int i) int {
+    if i == 101 {
+        return 0
+    }
+    var alreadyRan <is> = 0
+    if i / 3 * 3 == i {
+         print(70)
+         print(105)
+         print(122)
+         print(122)
+         alreadyRan = 1
+    }
+    if i / 5 * 5 == i {
+        print(66)
+        print(117)
+        print(122)
+        print(122)
+        alreadyRan = 1
+    }
+    if alreadyRan == 0 {
+        println(i)
+    }
+    if alreadyRan == 1 {
+        print_newline()
+    }
+    return fizzbuzz(i + 1);
+}

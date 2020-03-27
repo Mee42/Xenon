@@ -51,11 +51,22 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
 
     val block: List<Token> = tokens.takeAllNestedIn(beginning = TokenType.OPEN_BRACKET, end = TokenType.CLOSE_BRACKET, includeSurrounding = true)
     // block contains the {} but they are removed from the queue
-    return InitialFunction(name = functionName,
-        arguments = parsedArguments,
-        content = block,
-        returnType = returnType,
-        attributes = attributes.map(Token::content))
+    if(functionName == "main" && arguments.isEmpty()){
+        // it's the real name
+        return InitialFunction(name = functionName,
+            arguments = parsedArguments,
+            content = block,
+            returnType = returnType,
+            attributes = attributes.map(Token::content),
+            id = "")
+    } else {
+        return InitialFunction(name = functionName,
+            arguments = parsedArguments,
+            content = block,
+            returnType = returnType,
+            attributes = attributes.map(Token::content),
+            id = InitialFunction.genRandomID())
+    }
 }
 
 private fun parseArgument(tokens: List<Token>): Argument {

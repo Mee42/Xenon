@@ -19,7 +19,7 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     if(it.content == null) {
         // it's an assembly function
         return AssemblyFunction(
-            name = it.name, returnType = it.returnType, arguments = it.arguments
+            name = it.name, returnType = it.returnType, arguments = it.arguments, id = it.id
         )
     }
     if(it.content.first().type != OPEN_BRACKET || it.content.last().type != CLOSE_BRACKET) {
@@ -28,7 +28,7 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     // this is a block, it has both the open and close brackets as tokens
     val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = true) }
     val block = parseBlock(ConsumableQueue(it.content), initialAST, arguments)
-    return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments)
+    return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id)
 }
 /** this assumes that tokens starts with a { and ends the block with a } */
 private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
@@ -61,14 +61,19 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             OPERATOR, ASTERISK -> {
                 tokens.remove() // consume it
                 val math = MathType.values().firstOrNull { it.symbol == next.content }
-                    ?: throw ParseException("Can't deal with ${next.content} operator",next)
-                MathExpression(expression, parseExpression(tokens, initialAST, localVariables),math)
+                if(math != null) {
+                     checkForOperator(MathExpression(expression, parseExpression(tokens, initialAST, localVariables), math))
+                } else {
+                    if(next.content == "=="){
+                        EqualsExpression(expression, parseExpression(tokens, initialAST, localVariables))
+                    } else TODO("can't handle any other operators")
+                }
             }
             OPEN_PARENTHESES -> {
                 if(first.type != IDENTIFIER) throw ParseException("not a functional language, yet", next)
                 TODO()
             }
-            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET, IDENTIFIER, RETURN_KEYWORD -> expression
+            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET, IDENTIFIER, RETURN_KEYWORD, IF_KEYWORD, OPEN_BRACKET -> expression
             DOT -> TODO("member access not supported yet")
             else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
         }
@@ -112,19 +117,17 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                     arguments.add(parseExpression(tokens, initialAST, localVariables))
                 }
                 // ok, let's find the function with that name
-                val function = initialAST.functions.firstOrNull { it.name == first.content }
-                    ?: throw ParseException("Can't find function named \"${first.content}\"", first)
-                if (function.arguments.size != arguments.size) {
-                    throw ParseException("expecting ${function.arguments.size} arguments, got ${arguments.size}", paranth)
-                }
-                function.arguments.forEachIndexed { i, arg ->
-                    if (arguments[i].type != arg.type) {
-                        throw ParseException("type mismatched: looking for ${arg.type}, got ${arguments[i].type}")
-                    }
-                }
+                val functionOptions = initialAST.functions.filter { it.name == first.content }
+                if(functionOptions.isEmpty()) throw ParseException("Can't find function named \"${first.content}\"", first)
+                val function = functionOptions.firstOrNull {
+                    it.arguments.size == arguments.size && arguments.map { w -> w.type } == it.arguments.map { w -> w.type }
+                } ?: throw ParseException("Can't find function named \"${first.content}\" where arguments are ${arguments.map { it.type }}\n" +
+                    "Possible options:\n" +
+                    functionOptions.map { "\t - " + it.toDefString() + "\n"}, first)
+
                 checkForOperator(FunctionCallExpression(
                     arguments = arguments,
-                    function = function.name,
+                    functionIdentifier = function.identifier,
                     returnType = function.returnType,
                     argumentNames = function.arguments.map { it.name }))
             } else {
@@ -148,7 +151,8 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
         IF_KEYWORD -> {
             // parse an if statement
             val conditional = parseExpression(tokens, initialAST, localVariables)
-            TODO("if statements are not done yet. Conditional: $conditional")
+            val block = parseBlock(tokens, initialAST, localVariables)
+            IfStatement(conditional, block)
         }
         RETURN_KEYWORD -> {
             val value = parseExpression(tokens, initialAST, localVariables)
@@ -165,6 +169,7 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
                     // typedef
                     val typeTokens = tokens.removeWhile { !(it.type == OPERATOR && it.content == ">") }
                     val type = parseType(typeTokens, nextToken)
+                    if(tokens.remove().content != ">") error("hm")
                     nextToken = tokens.remove()
                     type
                 } else null
@@ -194,7 +199,18 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
                     expression = expression
                 )
             } else if(tokens.peek()!!.type == OPERATOR) {
-                TODO("can't support operators after identifiers as a statement")
+                val operator = tokens.remove()
+                if(operator.content == "=") {
+                    val variable = localVariables.firstOrNull { it.name == firstToken.content } ?: throw ParseException("can't find variable ${firstToken.content}", firstToken)
+                    if(variable.isFinal) throw ParseException("variable is final", firstToken)
+                    val expression = parseExpression(tokens, initialAST, localVariables)
+                    AssignVariableStatement(
+                        variableName = variable.name,
+                        expression = expression
+                    )
+                } else {
+                    TODO("can't support operators after identifiers as a statement")
+                }
             } else {
                 tokens.shove(firstToken)
                 ExpressionStatement(parseExpression(tokens, initialAST, localVariables))
@@ -220,8 +236,9 @@ fun ConsumableQueue<Token>.takeAllNestedIn(beginning: TokenType, end: TokenType,
                 if (count == 0) return@removeWhile false
                 else count--
             }
-            else -> list.add(it)
+            else -> {}
         }
+        list.add(it)
         true
     }
     val ending = this.remove().checkType(end, "illegal state")

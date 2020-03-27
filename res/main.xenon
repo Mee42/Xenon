@@ -1,8 +1,19 @@
 function main() int {
-    return count(1)
+    return loop(1)
 }
 
-function count(int i) int {
-    println(i)
-    return count(i + 1)
+function loop(int i, int max) int {
+    if i == max {
+        return 0
+    }
+    print(cast_char(42))
+    return loop(i + 1, max)
+}
+function loop(int i) int {
+    if i == 10 {
+        return 0
+    }
+    loop(i, 10)
+    println() 
+    return loop(i + 1)
 }

@@ -261,7 +261,7 @@ private infix fun <A,B,C> Pair<A,B>.to3(other: C): Triple<A,B,C> = Triple(first,
 private fun parse(string: String): List<AssemblyInstruction> {
     val preprocessed = dev.mee42.xpp.preprocess(string)
     val tokens = dev.mee42.lexer.lex(preprocessed)
-    val initialAST = parsePass1(tokens).withLibrary(standardLibrary)
+    val initialAST = parsePass1(tokens).withOther(standardLibrary)
     val ast = parsePass2(initialAST)
     val optimized = dev.mee42.opt.optimize(ast)
     return assemble(optimized)

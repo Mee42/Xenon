@@ -28,7 +28,7 @@ private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstructio
         val accumulatorRegister = Register.A
         // so we don't use these variables on accident
         this += AssemblyInstruction.CommentedLine(
-            line = AssemblyInstruction.Label(function.name),
+            line = AssemblyInstruction.Label(function.identifier),
             comment = "return value in register $returnRegister")
         // so the argument registers are
         // for now, let's fit everything into 8 bytes?
@@ -100,6 +100,32 @@ private fun assembleBlock(variableBindings: List<Variable>,
                     reg1 = variableRegister,
                     reg2 = SizedRegister(size, accumulatorRegister).advanced()).zeroIfNeeded()
             }
+            is IfStatement -> {
+                // [conditional]
+                // if result == 0, jmp to end
+                //    block
+                // end:
+
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister)
+                this += AssemblyInstruction.Compare(
+                    SizedRegister(RegisterSize.BIT8, Register.A),
+                    StaticValueAdvancedRegister(0, RegisterSize.BIT8)
+                )
+                val endingLabel = AssemblyInstruction.Label.next()
+                // jump to the end if the result is true (ie, if the condition results in
+                this += AssemblyInstruction.ConditionalJump(ComparisonOperator.EQUALS, endingLabel)
+                this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement.block, localVariableLocation, returnInstructions)
+                this += endingLabel
+            }
+            is AssignVariableStatement -> {
+                val expression = statement.expression
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
+                val variableRegister = (variableBindings + localVariables).first { it.name == statement.variableName }.register
+                this += AssemblyInstruction.Mov(
+                    reg1 = variableRegister,
+                    reg2 = SizedRegister(statement.expression.type.size, accumulatorRegister).advanced()
+                ).zeroIfNeeded()
+            }
         }
     }
 }
@@ -118,17 +144,6 @@ fun AssemblyInstruction.Mov.zeroIfNeeded(): List<AssemblyInstruction> {
 fun AssemblyInstruction.comment(str: String): AssemblyInstruction {
     return AssemblyInstruction.CommentedLine(this, str)
 }
-/*
-private fun List<Variable>.reserveOne(type: Type): Pair<List<Variable>, SizedRegister> {
-    val register = Register.usable.firstOrNull { this.none { variable -> variable.register.register == it } }
-        ?: error("ran out of registers oof")
-    fun Int.toReservedRegisterName(): String = "_reg_reserved_$this"
-    val name = (0..1000).first {
-        this.none { variable -> variable.name == it.toReservedRegisterName() }
-    }.toReservedRegisterName()
-    val sized =  SizedRegister(type.size, register)
-    return (this + Variable(name,type,sized, true)) to sized
-}*/
 
 fun SizedRegister.advanced(): AdvancedRegister {
     return AdvancedRegister(
