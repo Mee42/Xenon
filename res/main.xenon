@@ -1,17 +1,23 @@
 main() int {
-    val i <int32> = -5
-    if not(and(true, true)) {
-        print(cast_char(42))
-    }
-    if not(and(true, false)) {
-        print(cast_char(43))
-    }
-    if not(and(false, true)) {
-        print(cast_char(44))
-    }
-    if not(and(false, false)) {
-        print(cast_char(45))
+    var i = 0
+    while not(i == 10) {
+          println(i)
+          i = i + 1
     }
     return 0
 }
+
+// while foo() { bar() }
+
+
+// LSTART:
+// call foo
+// cmp al, 0
+// je LEND
+//
+// call bar 
+// 
+// jmp LSTART
+// LEND:
+
 

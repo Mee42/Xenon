@@ -157,6 +157,11 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
             val block = parseBlock(tokens, initialAST, localVariables)
             IfStatement(conditional, block)
         }
+        WHILE_KEYWORD -> {
+            val conditional = parseExpression(tokens, initialAST, localVariables)
+            val block = parseBlock(tokens, initialAST, localVariables)
+            WhileStatement(conditional, block)
+        }
         RETURN_KEYWORD -> {
             val value = parseExpression(tokens, initialAST, localVariables)
             ReturnStatement(value)

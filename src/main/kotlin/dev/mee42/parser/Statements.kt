@@ -38,3 +38,8 @@ data class IfStatement(val conditional: Expression, val block: Block): Statement
     override val localVariableMaxBytes: Int
         get() = block.localVariableMaxBytes
 }
+data class WhileStatement(val conditional: Expression, val block: Block): Statement() {
+    override val localVariableMaxBytes: Int
+        get() = block.localVariableMaxBytes
+}
+

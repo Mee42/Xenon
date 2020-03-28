@@ -108,7 +108,7 @@ private fun assembleBlock(variableBindings: List<Variable>,
 
                 this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister)
                 this += AssemblyInstruction.Compare(
-                    SizedRegister(RegisterSize.BIT8, Register.A),
+                    SizedRegister(RegisterSize.BIT8, accumulatorRegister),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)
                 )
                 val endingLabel = AssemblyInstruction.Label.next()
@@ -116,6 +116,20 @@ private fun assembleBlock(variableBindings: List<Variable>,
                 this += AssemblyInstruction.ConditionalJump(ComparisonOperator.EQUALS, endingLabel)
                 this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement.block, localVariableLocation, returnInstructions)
                 this += endingLabel
+            }
+            is WhileStatement -> {
+                val lstart = AssemblyInstruction.Label.next()
+                val lend = AssemblyInstruction.Label.next()
+                this += lstart
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister)
+                this += AssemblyInstruction.Compare(
+                    SizedRegister(RegisterSize.BIT8, accumulatorRegister),
+                    StaticValueAdvancedRegister(0, RegisterSize.BIT8)
+                )
+                this += AssemblyInstruction.ConditionalJump(ComparisonOperator.EQUALS, lend)
+                this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement.block, localVariableLocation, returnInstructions)
+                this += AssemblyInstruction.Jump(lstart.name)
+                this += lend
             }
             is AssignVariableStatement -> {
                 val expression = statement.expression
