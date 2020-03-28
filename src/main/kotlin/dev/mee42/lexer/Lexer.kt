@@ -17,10 +17,12 @@ open class TokenException(lineContent: String, line: Int, index: Int, message: S
 }
 
 enum class TokenType(val regex: Regex) {
-    FUNCTION_KEYWORD("function"),
     RETURN_KEYWORD("return"),
+    STRUCT_KEYWORD("struct"),
     IF_KEYWORD("if"),
     WHILE_KEYWORD("while"),
+    TRUE("true"),
+    FALSE("false"),
     OPEN_PARENTHESES("("),
     CLOSE_PARENTHESES(")"),
     OPEN_BRACKET("{"),
@@ -33,8 +35,8 @@ enum class TokenType(val regex: Regex) {
     @Language("RegExp") WHITESPACE(quote = false, str = """\s+"""),
     @Language("RegExp") ATTRIBUTE (quote = false, str = """@[a-zA-Z0-9_]*"""),
     @Language("RegExp") IDENTIFIER(quote = false, str = """[a-z][A-Za-z0-9_]*"""),
-    @Language("RegExp") OPERATOR  (quote = false, str = """[+\-/><=!*%]+"""),
-    @Language("RegExp") INTEGER   (quote = false, str = """(?:-?)[0-9]+""")
+    @Language("RegExp") INTEGER   (quote = false, str = """(?:-?)[0-9]+"""),
+    @Language("RegExp") OPERATOR  (quote = false, str = """[+\-/><=!*%]+""")
     ;
     constructor(str: String, quote: Boolean = true): this(Regex("^" + if(quote) Regex.escape(str) else str))
 }

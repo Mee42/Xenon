@@ -10,10 +10,13 @@ fun parsePass1(tokens: List<Token>): InitialAST {
     val queue = ConsumableQueue(tokens)
     val functions = mutableListOf<InitialFunction>()
     while(queue.isNotEmpty()) {
-        val start = queue.remove()
+        val start = queue.peek()!!
         when(start.type) {
-            TokenType.FUNCTION_KEYWORD -> {
+            TokenType.IDENTIFIER -> {
                 functions.add(initialPassParseFunction(queue))
+            }
+            TokenType.STRUCT_KEYWORD -> {
+                TODO("structs are not a thing yet")
             }
             else -> throw ParseException("can't start a top-level statement with this token", start)
         }

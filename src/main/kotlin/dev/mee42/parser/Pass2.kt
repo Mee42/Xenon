@@ -97,10 +97,13 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             }
             DereferencePointerExpression(dereferencedPointer)
         }
+        TRUE, FALSE -> {
+            IntegerValueExpression(if(first.type == TRUE) 1 else 0, BaseType(TypeEnum.BOOLEAN))
+        }
         IDENTIFIER -> {
             if (tokens.peek()?.type == OPEN_PARENTHESES) {
                 val arguments = mutableListOf<Expression>()
-                val paranth = tokens.remove().checkType(OPEN_PARENTHESES, "popped token changed from last peek")
+                tokens.remove().checkType(OPEN_PARENTHESES, "popped token changed from last peek")
                 while (true) {
                     if (arguments.isEmpty()) {
                         val token = tokens.peek() ?: error("no")

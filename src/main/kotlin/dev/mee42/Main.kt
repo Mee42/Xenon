@@ -15,63 +15,6 @@ fun main(args: Array<String>) {
     val file = File(args.firstOrNull() ?: error("you need to specify a file"))
     run(file.readText(Charsets.UTF_8), stdlib)
 }
-/*
-val standardLibrary = listOf(
-    InitialFunction(
-        name = "println",
-        id = "",
-        arguments = listOf(Argument(
-            name = "i",
-            type = BaseType(TypeEnum.INT32)
-        )),
-        returnType = BaseType(TypeEnum.VOID),
-        content = null, // TODO build a dsl for this
-        attributes = emptyList()
-    ),
-    InitialFunction(
-        name = "println_ptr",
-        id = "",
-        arguments = listOf(Argument(
-            name = "ptr",
-            type = PointerType(BaseType(TypeEnum.INT32))
-        )),
-        returnType = BaseType(TypeEnum.VOID),
-        content = null,
-        attributes = emptyList()
-    ),
-    InitialFunction(
-        name = "print",
-        id = "",
-        arguments = listOf(Argument(
-            name = "c",
-            type = BaseType(TypeEnum.INT32)
-        )),
-        returnType = BaseType(TypeEnum.VOID),
-        content = null,
-        attributes = emptyList()
-    ),
-    InitialFunction(
-        name = "print_newline",
-        id = "",
-        arguments = emptyList(),
-        returnType = BaseType(TypeEnum.VOID),
-        content = null,
-        attributes = emptyList()
-    ),
-    InitialFunction(
-        name = "malloc_int",
-        id = "",
-        arguments = listOf(Argument(
-            name = "bytes",
-            type = BaseType(TypeEnum.INT32)
-        )),
-        returnType = PointerType(BaseType(TypeEnum.INT32)),
-        content = null,
-        attributes = emptyList()
-    )
-)
-*/
-
 
 private fun run(xenon: String, stdlib: XenonLibrary) {
     val id = randomID()

@@ -87,18 +87,96 @@ private val casts = lib {
         returnType = type("char")
         assembly = """
         cast_char_int:
-            push rbp
-            mov rbp, rsp
-            mov rax, [rbp + 16]
-            pop rbp
+            mov rax, [rsp + 8]
             ret
         """.trimIndent()
     }
+    function {
+        name = "cast_long"
+        id = "_int"
+        arguments = listOf("i".arg("int"))
+        returnType = type("long")
+        assembly = """
+            cast_long_int:
+                mov rax, [rsp + 8]
+                ret
+        """.trimIndent()
+    }
 }
-val stdlib = printf + casts
-
-
-
+private val bools = lib {
+    function {
+        name = "true"
+        id = "_bool"
+        arguments = emptyList()
+        returnType = type("bool")
+        assembly = """
+            true_bool:
+                mov al, 1
+                ret
+        """.trimIndent()
+    }
+    function {
+        name = "false"
+        id = "_bool"
+        arguments = emptyList()
+        returnType = type("bool")
+        assembly = """
+            false_bool:
+                mov al, 0
+                ret
+        """.trimIndent()
+    }
+    function {
+        name = "and"
+        id = "_bool"
+        arguments = listOf("a".arg("bool"),"b".arg("bool"))
+        returnType = type("bool")
+        assembly = """
+            and_bool:
+                push rbp
+                mov rbp, rsp
+                mov al, [rbp + 24]
+                mov bl, [rbp + 16]
+                and al, bl
+                pop rbp
+                ret
+        """.trimIndent()
+    }
+    function {
+        name = "or"
+        id = "_bool"
+        arguments = listOf("a".arg("bool"),"b".arg("bool"))
+        returnType = type("bool")
+        assembly = """
+            or_bool:
+                push rbp
+                mov rbp, rsp
+                mov al, [rbp + 24]
+                mov bl, [rbp + 16]
+                or al, bl
+                pop rbp
+                ret
+        """.trimIndent()
+    }
+    function {
+        name = "not"
+        id = "_bool"
+        arguments = listOf("b".arg("bool"))
+        returnType = type("bool")
+        assembly = """
+            not_bool:
+                mov rax, [rsp + 8]
+                cmp al, 0
+                je not_bool_L1
+                mov al, 0
+                ret
+                not_bool_L1:
+                mov al, 1
+                ret
+        """.trimIndent()
+    }
+}
+val stdlib = printf + casts + bools
 
 class XenonLibrary(val functions: List<CompiledFunction>,
                    val extraText: String,

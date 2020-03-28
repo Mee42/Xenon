@@ -1,19 +1,17 @@
-function main() int {
-    return loop(1)
+main() int {
+    val i <int32> = -5
+    if not(and(true, true)) {
+        print(cast_char(42))
+    }
+    if not(and(true, false)) {
+        print(cast_char(43))
+    }
+    if not(and(false, true)) {
+        print(cast_char(44))
+    }
+    if not(and(false, false)) {
+        print(cast_char(45))
+    }
+    return 0
 }
 
-function loop(int i, int max) int {
-    if i == max {
-        return 0
-    }
-    print(cast_char(42))
-    return loop(i + 1, max)
-}
-function loop(int i) int {
-    if i == 10 {
-        return 0
-    }
-    loop(i, 10)
-    println() 
-    return loop(i + 1)
-}
