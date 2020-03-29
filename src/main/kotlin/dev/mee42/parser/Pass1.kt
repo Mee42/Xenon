@@ -21,7 +21,7 @@ fun parsePass1(tokens: List<Token>): InitialAST {
             else -> throw ParseException("can't start a top-level statement with this token", start)
         }
     }
-    return InitialAST(functions = functions)
+    return InitialAST(functions = functions,structs =  emptyList())
 }
 
 
@@ -31,8 +31,10 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
     // lets take all the attributes
     val attributes = tokens.removeWhile { it.type == TokenType.ATTRIBUTE }
 
-    val functionName = tokens.remove()
-        .checkType(TokenType.IDENTIFIER, "function name must be an identifier").content
+    val headerPart = tokens.removeWhile { it.type != TokenType.OPEN_PARENTHESES }
+    val identifier = headerPart.last().checkType(TokenType.IDENTIFIER, "function name must be an identifier")
+    val returnType = parseType(headerPart.dropLast(1), identifier)
+    val functionName = identifier.content
 
     tokens.remove().checkType(TokenType.OPEN_PARENTHESES, "function identifier must be followed by a parentheses")
 
@@ -49,8 +51,7 @@ private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFun
         }.filterNotNull()
 
     val parsedArguments = arguments.map(::parseArgument)
-    val closeParentheses = tokens.remove().checkType(TokenType.CLOSE_PARENTHESES, "illegal state")
-    val returnType = parseType(tokens.removeWhile { it.type != TokenType.OPEN_BRACKET }, closeParentheses)
+    tokens.remove().checkType(TokenType.CLOSE_PARENTHESES, "illegal state")
 
     val block: List<Token> = tokens.takeAllNestedIn(beginning = TokenType.OPEN_BRACKET, end = TokenType.CLOSE_BRACKET, includeSurrounding = true)
     // block contains the {} but they are removed from the queue

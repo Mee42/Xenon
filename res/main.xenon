@@ -1,23 +1,30 @@
-main() int {
-    var i = 0
-    while not(i == 10) {
-          println(i)
-          i = i + 1
-    }
+int main() {
+    val str = "Hello, World"
+    val copy = clone(str);
+    *(str + 4) = 'x' 
+    println(str)
+    println(copy)
     return 0
 }
 
-// while foo() { bar() }
+void println(char* string){
+    printf("%s\n",string);
+    return 0;
+}
 
-
-// LSTART:
-// call foo
-// cmp al, 0
-// je LEND
-//
-// call bar 
-// 
-// jmp LSTART
-// LEND:
-
-
+char* clone(char* string){
+    mut val i = string
+    while not((*i) == cast_char(0)) {
+        i = i + 1
+    }
+    val size = cast_int(i - string);
+   val newStr = malloc_char(size + 1);
+    i = string
+    mut val j = newStr
+    while not((*i) == cast_char(0)) {
+        *j = *i
+        j = j + 1 
+        i = i + 1
+    }
+    return newStr 
+} 

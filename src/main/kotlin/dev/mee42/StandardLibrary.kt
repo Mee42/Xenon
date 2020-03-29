@@ -3,7 +3,7 @@ package dev.mee42
 import dev.mee42.parser.*
 
 
-private val printf = lib {
+private val println = lib {
     function {
         name = "println"
         id = "_int"
@@ -54,6 +54,22 @@ private val printf = lib {
                 jmp printf_main
         """.trimIndent()
     }
+    function {
+        name = "print"
+        id = "_string"
+        arguments = listOf("str".arg("char*"))
+        assembly = """
+            print_string: ; takes in a single string argument
+                push rbp
+                mov rbp, rsp
+                mov rdi, [rbp + 16]
+                xor rax, rax
+                call printf
+                xor rax, rax
+                pop rbp
+                ret
+        """.trimIndent()
+    }
 
     extraText("""
         printf_main:
@@ -75,8 +91,52 @@ private val printf = lib {
             printf_format_newline: db 10, 0
             printf_format_char_newline: db "%c", 10, 0
             printf_format_char: db "%c", 0
+            
         """.trimIndent()
     )
+}
+
+    //; argument 0 (a) in register DWORD [rbp + 24]
+    //; argument 1 (b) in register DWORD [rbp + 16]
+private val printf = lib {
+    function {
+        name = "printf"
+        arguments = listOf("format".arg("char*"))
+        id = "_no_args"
+        assembly = """
+            printf_no_args: ; takes in a single string argument
+                push rbp
+                mov rbp, rsp
+                mov rdi, [rbp + 16]
+                xor rax, rax
+                call printf
+                xor rax, rax
+                pop rbp
+                ret
+        """.trimIndent()
+    }
+    extraText("""
+        printf_one_arg:
+            push rbp
+            mov rbp, rsp
+            mov rdi, [rbp + 24]
+            mov rsi, [rbp + 16]
+            xor rax, rax
+            call printf
+            pop rbp
+    """.trimIndent())
+    function {
+        name = "printf"
+        id = "_one_arg_int"
+        arguments = listOf("str".arg("char*"), "i".arg("int"))
+        assembly = "printf_one_arg_int: \njmp printf_one_arg"
+    }
+    function {
+        name = "printf"
+        id = "_one_arg_string"
+        arguments = listOf("str".arg("char*"), "i".arg("char*"))
+        assembly = "printf_one_arg_string: \n    jmp printf_one_arg"
+    }
 }
 
 private val casts = lib {
@@ -92,6 +152,17 @@ private val casts = lib {
         """.trimIndent()
     }
     function {
+        name = "cast_short"
+        id = "_int"
+        arguments = listOf("i".arg("int"))
+        returnType = type("short")
+        assembly  = """
+            cast_short_int:
+                mov rax, [rsp + 8]
+                ret
+        """.trimIndent()
+    }
+    function {
         name = "cast_long"
         id = "_int"
         arguments = listOf("i".arg("int"))
@@ -102,7 +173,22 @@ private val casts = lib {
                 ret
         """.trimIndent()
     }
+
+    // 0x06 F <- string
+    // 0x07 0 <- i
+    function {
+        name = "cast_int"
+        id = "_int_ptr"
+        arguments = listOf("i".arg("ubyte*"))
+        returnType = type("int")
+        assembly = """
+            cast_int_int_ptr:
+                mov rax, [rsp + 8]
+                ret
+        """.trimIndent()
+    }
 }
+
 private val bools = lib {
     function {
         name = "true"
@@ -176,7 +262,55 @@ private val bools = lib {
         """.trimIndent()
     }
 }
-val stdlib = printf + casts + bools
+
+private val malloc = lib {
+    function {
+        name = "malloc_int"
+        id = ""
+        arguments = listOf("count".arg("int"))
+        returnType = type("int*")
+        assembly = """
+        malloc_int:    
+            push rbp
+            mov rbp, rsp
+            mov rdi, [rbp + 16]
+            add rdi, rdi
+            add rdi, rdi
+            xor rax, rax
+            call malloc
+            pop rbp
+            ret
+        """.trimIndent()
+    }
+    function {
+        name = "malloc_byte"
+        id = ""
+        arguments = listOf("count".arg("int"))
+        returnType = type("byte*")
+        assembly = """
+        malloc_byte:    
+            push rbp
+            mov rbp, rsp
+            mov rdi, [rbp + 16]
+            xor rax, rax
+            call malloc
+            pop rbp
+            ret
+        """.trimIndent()
+    }
+    function {
+        name = "malloc_char"
+        id = ""
+        arguments = listOf("count".arg("int"))
+        returnType = type("char*")
+        assembly = """
+        malloc_char:
+            jmp malloc_byte
+        """.trimIndent()
+    }
+}
+
+val stdlib = println + casts + bools + malloc + printf
 
 class XenonLibrary(val functions: List<CompiledFunction>,
                    val extraText: String,
@@ -210,7 +344,7 @@ data class CompiledFunction(
 
 fun type(str: String): Type {
     return if(str.endsWith("*")){
-        PointerType(type(str.substring(1)))
+        PointerType(type(str.dropLast(1)))
     } else {
         BaseType(TypeEnum.of(str))
     }

@@ -1,5 +1,6 @@
 package dev.mee42
 
+import dev.mee42.asm.Assembly
 import dev.mee42.asm.AssemblyInstruction
 import dev.mee42.asm.assemble
 import dev.mee42.nasm.randomID
@@ -27,14 +28,14 @@ extern malloc
 section .text
     global main
 
-[[copy]]
- 
-
+[[program_text]]
 
 [[library_text]]
 
 
 section .data
+[[program_data]]
+
 [[library_data]]
 
     """.trimIndent()
@@ -42,9 +43,13 @@ section .data
     File("gen/tests/$id").mkdirs()
     val filePath = "gen/tests/$id/$id"
     val file = File("$filePath.asm")
-    val program = compiled.fold("") {a,b  -> "$a\n$b" }.trim()
+    val program = compiled.asm.joinToString("\n","","") { it.str }
+    val programData = compiled.data.joinToString("\n","","") {
+        "    " + it.name + ": db " + it.data.joinToString(",","","")
+    }
     val libraryText = stdlib.functions.joinToString("\n\n") { it.assembly } + "\n\n" + stdlib.extraText
-    file.writeText(stringContent.replace("[[copy]]", program)
+    file.writeText(stringContent.replace("[[program_text]]", program)
+                                .replace("[[program_data]]", programData)
                                 .replace("[[library_text]]",libraryText)
                                 .replace("[[library_data]]", stdlib.extraData))
 
@@ -65,7 +70,7 @@ section .data
     if(exitCode != 0) error("exited with code $exitCode\n stderr: $stderr\n")
 }
 
-private fun compile(string: String): List<AssemblyInstruction> {
+private fun compile(string: String): Assembly {
     val preprocessed = dev.mee42.xpp.preprocess(string)
 
     val tokens = dev.mee42.lexer.lex(preprocessed)
@@ -73,7 +78,7 @@ private fun compile(string: String): List<AssemblyInstruction> {
 //    tokens.map(Token::content).map { "$it "}.forEach(::print)
 //    println("\n")
 
-    val initialAST = parsePass1(tokens).withOther(InitialAST(stdlib.functions.map { it.toInitialFunction() }))
+    val initialAST = parsePass1(tokens).withOther(InitialAST(stdlib.functions.map { it.toInitialFunction() }, emptyList()))
 
     val ast = parsePass2(initialAST)
 

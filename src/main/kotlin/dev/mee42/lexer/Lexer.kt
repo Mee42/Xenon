@@ -1,6 +1,7 @@
 package dev.mee42.lexer
 
 import dev.mee42.CompilerException
+import dev.mee42.parser.ParseException
 import dev.mee42.xpp.LabeledLine
 import org.intellij.lang.annotations.Language
 
@@ -23,6 +24,7 @@ enum class TokenType(val regex: Regex) {
     WHILE_KEYWORD("while"),
     TRUE("true"),
     FALSE("false"),
+    @Language("RegExp") CHARACTER(quote = false, str  = """'.'"""),
     OPEN_PARENTHESES("("),
     CLOSE_PARENTHESES(")"),
     OPEN_BRACKET("{"),
@@ -30,8 +32,11 @@ enum class TokenType(val regex: Regex) {
     COMMA(","),
     COLON(":"),
     SEMICOLON(";"),
+    OPEN_COMMENT("/*"),
+    CLOSE_COMMENT("*/"),
     ASTERISK("*"),
     DOT("."),
+    @Language("RegExp") STRING(quote = false, str = """"((\\\\)|(\\")|(\\n)|(\\t)|[^"\\]*)+""""),
     @Language("RegExp") WHITESPACE(quote = false, str = """\s+"""),
     @Language("RegExp") ATTRIBUTE (quote = false, str = """@[a-zA-Z0-9_]*"""),
     @Language("RegExp") IDENTIFIER(quote = false, str = """[a-z][A-Za-z0-9_]*"""),

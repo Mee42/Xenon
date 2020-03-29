@@ -1,5 +1,8 @@
 package dev.mee42.parser
 
+import dev.mee42.asm.RegisterSize
+import dev.mee42.type
+
 
 sealed class Expression(open val type: Type)
 class VariableAccessExpression(val variableName: String, type: Type): Expression(type) {
@@ -13,7 +16,7 @@ class IntegerValueExpression(val value: Int, override val type: BaseType) :Expre
         return "INT_VALUE($value:$type)"
     }
 }
-
+data class StringLiteralExpression(val value: String) : Expression(type("char*"))
 
 
 enum class MathType(val symbol: String) {
@@ -21,10 +24,10 @@ enum class MathType(val symbol: String) {
 }
 data class MathExpression(val var1: Expression, val var2: Expression, val mathType: MathType): Expression(var1.type) {
     init {
-        if(var1.type is PointerType || var2.type is PointerType) {
-            error("adding to pointer types not supported as of right now")
+        if(var1.type is PointerType && var2.type is PointerType && mathType != MathType.SUB) {
+            error("can't add two pointers")
         }
-        if((var1.type as BaseType).type.registerSize != (var2.type as BaseType).type.registerSize) {
+        if(var1.type is BaseType && var2.type is BaseType && (var1.type as BaseType).type.registerSize != (var2.type as BaseType).type.registerSize) {
             error("mis-matched sizes")
         }
     }

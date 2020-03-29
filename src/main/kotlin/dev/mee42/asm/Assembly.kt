@@ -16,9 +16,11 @@ sealed class AssemblyInstruction(strIn: String) {
             reg2 = SizedRegister(size, reg2).advanced()
         )
     }
+    class MovToLabel(reg: Register, labelName: String): AssemblyInstruction("mov ${SizedRegister(BIT64,reg)}, $labelName")
     class MovSX(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("movsx $reg1, $reg2")
     class MovZX(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("movzx $reg1, $reg2")
 
+    class Shl(reg1: SizedRegister, i: Int): AssemblyInstruction("shl $reg1, $i")
 
     class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("add $reg1, $reg2")
     class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("sub $reg1, $reg2")

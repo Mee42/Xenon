@@ -2,17 +2,61 @@ package dev.mee42.asm
 
 import dev.mee42.parser.*
 
-typealias Assembly = List<AssemblyInstruction>
+class DataEntry(val name: String, val data: List<Int>)
+
+class Assembly(val asm: List<AssemblyInstruction>, val data: List<DataEntry>) {
+    operator fun plus(other: Assembly) : Assembly {
+        return Assembly(asm + other.asm, data + other.data)
+    }
+}
+
+
+fun buildAssembly(block: AssemblyBuilder.() -> Unit): Assembly {
+    return AssemblyBuilder().apply(block).build()
+}
+
+class AssemblyBuilder {
+    private val data = mutableListOf<DataEntry>()
+    private val asm = mutableListOf<AssemblyInstruction>()
+    operator fun plusAssign(other: Assembly){
+        this.data += other.data
+        this.asm += other.asm
+    }
+    operator fun plusAssign(data: DataEntry) {
+        this.data += data
+    }
+    operator fun plusAssign(instruction: AssemblyInstruction) {
+        this.asm += instruction
+    }
+    operator fun plusAssign(instructions: List<AssemblyInstruction>) {
+        this.asm += instructions
+    }
+    fun build(): Assembly = Assembly(asm, data)
+}
 
 private class ExpressionExistsState(val variableBindings: List<Variable>, val ast: AST, val accumulatorRegister: Register) {
 
-    private fun assembleExpression(expression: MathExpression): Assembly = buildList {
+    private fun assembleExpression(expression: MathExpression): Assembly = buildAssembly {
         this += assembleExpression(variableBindings, ast, expression.var1, accumulatorRegister)
         this += AssemblyInstruction.Push(accumulatorRegister)
         this += assembleExpression(variableBindings, ast, expression.var2, accumulatorRegister)
         when(expression.mathType) {
             MathType.ADD -> {
                 this += AssemblyInstruction.Pop(Register.B)
+
+                if(expression.type is PointerType) {
+                    val addMultiplier = expression.type.type.size.bytes
+                    val shift = when(addMultiplier) {
+                        1 -> 0
+                        2 -> 1
+                        4 -> 2
+                        8 -> 3
+                        else -> error("can't support things of that size yet")
+                    }
+                    if(shift != 0) {
+                        this += AssemblyInstruction.Shl(SizedRegister(expression.type.type.size,accumulatorRegister), shift)
+                    }
+                }
                 this += AssemblyInstruction.Add(
                     reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
                     reg2 = SizedRegister(expression.type.size, Register.B).advanced()
@@ -66,7 +110,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
     }
 
 
-    private fun assembleExpression(expression: VariableAccessExpression): Assembly = buildList {
+    private fun assembleExpression(expression: VariableAccessExpression): Assembly = buildAssembly {
         val variable = variableBindings.first { it.name == expression.variableName }
         this += AssemblyInstruction.Mov(
             reg1 = SizedRegister(variable.register.size, accumulatorRegister).advanced(),
@@ -74,7 +118,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
         ).comment( "pulling variable ${expression.variableName}")
     }
 
-    private fun assembleExpression(expression: DereferencePointerExpression): Assembly = buildList {
+    private fun assembleExpression(expression: DereferencePointerExpression): Assembly = buildAssembly {
         if(expression.pointerExpression.type !is PointerType) error("assertion failed")
         this += assembleExpression(variableBindings, ast, expression.pointerExpression, accumulatorRegister)
         this += AssemblyInstruction.Mov(
@@ -86,7 +130,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
         )
     }
 
-    private fun assembleExpression(expression: FunctionCallExpression): Assembly = buildList {
+    private fun assembleExpression(expression: FunctionCallExpression): Assembly = buildAssembly {
         // pretty much, just push all the arguments, call the function, then clean the stack
         val argumentSize = expression.arguments.size * 8
 
@@ -103,14 +147,14 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
         )
     }
 
-    private fun assembleExpression(expression: IntegerValueExpression): Assembly = buildList {
+    private fun assembleExpression(expression: IntegerValueExpression): Assembly = buildAssembly {
         this += AssemblyInstruction.Mov(
             reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
             reg2 = StaticValueAdvancedRegister(expression.value, expression.type.size)
         )
     }
 
-    private fun assembleExpression(expression: EqualsExpression): Assembly = buildList {
+    private fun assembleExpression(expression: EqualsExpression): Assembly = buildAssembly {
         // just like the math expression
         // order is agnostic, so let's do this the normal way
         if(expression.var1.type.size != expression.var2.type.size) error("uh, can't do that")
@@ -124,6 +168,13 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
         )
         this += AssemblyInstruction.SetCC(ComparisonOperator.EQUALS, accumulatorRegister)
     }
+    private fun assembleExpression(expression: StringLiteralExpression): Assembly = buildAssembly {
+        val (label, dataEntry) = StringInterner.labelString(expression.value)
+        if(dataEntry != null) {
+            this += dataEntry
+        }
+        this += AssemblyInstruction.MovToLabel(accumulatorRegister, label)
+    }
 
     fun assembleExpression(expression: Expression): Assembly {
         return when(expression) {
@@ -133,27 +184,31 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
             is FunctionCallExpression -> assembleExpression(expression)
             is IntegerValueExpression -> assembleExpression(expression)
             is EqualsExpression -> assembleExpression(expression)
+            is StringLiteralExpression -> assembleExpression(expression)
         }
     }
 
+}
+
+private object StringInterner {
+    private val map = mutableMapOf<String, String>()
+    private const val prefix = "str_n"
+    private var i: Int = 0
+    fun labelString(stringLiteral: String): Pair<String,DataEntry?> {
+        return when(val f = map[stringLiteral]) {
+            null -> {
+                val label = prefix + (++i)
+                map[stringLiteral] = label
+                label to DataEntry(
+                        name = label,
+                        data = stringLiteral.map { it.toByte().toInt() } + listOf(0) // strings are zero-terminated
+                )
+            }
+            else -> f to null
+        }
+    }
 }
 
 fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: Expression, accumulatorRegister: Register): Assembly {
     return ExpressionExistsState(variableBindings, ast, accumulatorRegister).assembleExpression(expression)
 }
-/*
-    is FunctionCallExpression -> {
-        buildList {
-
-        }
-    }
-    is IntegerValueExpression -> buildList {
-        this += AssemblyInstruction.Mov(
-            reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
-            reg2 = StaticValueAdvancedRegister(expression.value, expression.type.size)
-        )
-    }
-}
-
-
-    */

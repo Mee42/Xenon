@@ -1,12 +1,11 @@
 package dev.mee42.asm
 
 import dev.mee42.parser.*
-import kotlin.math.exp
 
-fun assemble(ast: AST):List<AssemblyInstruction> {
+fun assemble(ast: AST): Assembly {
     return ast.functions
         .filterIsInstance<XenonFunction>()
-        .map { assemble(it, ast) }.flatten()
+        .map { assemble(it, ast) }.fold(Assembly(emptyList(), emptyList())) { a, b -> a + b }
 }
 class Variable(val name: String, val type: Type, val register: AdvancedRegister)
 
@@ -19,56 +18,54 @@ private fun stackPointerRegister(offset: Int, size: RegisterSize): AdvancedRegis
     )
 }
 
-private fun assemble(function: XenonFunction, ast: AST): List<AssemblyInstruction> {
-    return buildList {
-        // these are the registers needed to call this function:
-        val variableBindings = mutableListOf<Variable>()
+private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembly {
+    // these are the registers needed to call this function:
+    val variableBindings = mutableListOf<Variable>()
 
-        val returnRegister = SizedRegister(function.returnType.size, Register.A)
-        val accumulatorRegister = Register.A
-        // so we don't use these variables on accident
-        this += AssemblyInstruction.CommentedLine(
-            line = AssemblyInstruction.Label(function.identifier),
-            comment = "return value in register $returnRegister")
-        // so the argument registers are
-        // for now, let's fit everything into 8 bytes?
-        // yeah
-        // sure
-        var position = function.arguments.size * 8 + 8
-        function.arguments.forEachIndexed { i, it ->
-            val register = stackPointerRegister(position, it.type.size)
-            position -= 8
-            variableBindings.add(Variable(it.name, it.type, register))
-            this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
-        }
-        val localVariableSize = function.content.localVariableMaxBytes.let { if(it % 16 == 0) it else it + 16 - it % 16 }
-        this += AssemblyInstruction.Push(Register.BP) // push rbp so we don't lose it when we return
-        this += AssemblyInstruction.Mov(
-            reg1 = SizedRegister(RegisterSize.BIT64, Register.BP).advanced(),
-            reg2 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced()
-        )
-        this += AssemblyInstruction.Sub(
+    val returnRegister = SizedRegister(function.returnType.size, Register.A)
+    val accumulatorRegister = Register.A
+    // so we don't use these variables on accident
+    this += AssemblyInstruction.CommentedLine(
+        line = AssemblyInstruction.Label(function.identifier),
+        comment = "return value in register $returnRegister")
+    // so the argument registers are
+    // for now, let's fit everything into 8 bytes?
+    // yeah
+    // sure
+    var position = function.arguments.size * 8 + 8
+    function.arguments.forEachIndexed { i, it ->
+        val register = stackPointerRegister(position, it.type.size)
+        position -= 8
+        variableBindings.add(Variable(it.name, it.type, register))
+        this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
+    }
+    val localVariableSize = function.content.localVariableMaxBytes.let { if(it % 16 == 0) it else it + 16 - it % 16 }
+    this += AssemblyInstruction.Push(Register.BP) // push rbp so we don't lose it when we return
+    this += AssemblyInstruction.Mov(
+        reg1 = SizedRegister(RegisterSize.BIT64, Register.BP).advanced(),
+        reg2 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced()
+    )
+    this += AssemblyInstruction.Sub(
+        reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
+        reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
+    )
+    val returnInstructions = buildList<AssemblyInstruction> {
+        this += AssemblyInstruction.Add(
             reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
             reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
         )
-        val returnInstructions = buildList<AssemblyInstruction> {
-            this += AssemblyInstruction.Add(
-                reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
-                reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
-            )
-            this += AssemblyInstruction.Pop(Register.BP)
-            this += AssemblyInstruction.Ret
-        }
-        this += assembleBlock(variableBindings, ast, accumulatorRegister, function.content, -8, returnInstructions)
-
+        this += AssemblyInstruction.Pop(Register.BP)
+        this += AssemblyInstruction.Ret
     }
+    this += assembleBlock(variableBindings, ast, accumulatorRegister, function.content, -8, returnInstructions)
 }
+
 
 private fun assembleBlock(variableBindings: List<Variable>,
                           ast: AST, accumulatorRegister: Register,
                           block: Block,
                           topLocal: Int,
-                          returnInstructions: List<AssemblyInstruction>): List<AssemblyInstruction>  = buildList {
+                          returnInstructions: List<AssemblyInstruction>): Assembly  = buildAssembly {
     val localVariables = mutableListOf<Variable>()
     var localVariableLocation = topLocal
     for(statement in block.statements) {
@@ -139,6 +136,19 @@ private fun assembleBlock(variableBindings: List<Variable>,
                     reg1 = variableRegister,
                     reg2 = SizedRegister(statement.expression.type.size, accumulatorRegister).advanced()
                 ).zeroIfNeeded()
+            }
+            is MemoryWriteStatement ->  {
+                this += assembleExpression(variableBindings + localVariables, ast, statement.location, accumulatorRegister)
+                this += AssemblyInstruction.Push(accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.value, accumulatorRegister)
+                this += AssemblyInstruction.Pop(Register.B)
+                this += AssemblyInstruction.Mov(
+                        reg1 = AdvancedRegister(
+                                register = SizedRegister(RegisterSize.BIT64, Register.B),
+                                isMemory = true,
+                                size = statement.value.type.size),
+                        reg2 = SizedRegister(statement.value.type.size, accumulatorRegister).advanced()
+                )
             }
         }
     }

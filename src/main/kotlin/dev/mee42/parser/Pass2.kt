@@ -73,7 +73,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 if(first.type != IDENTIFIER) throw ParseException("not a functional language, yet", next)
                 TODO()
             }
-            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET, IDENTIFIER, RETURN_KEYWORD, IF_KEYWORD, OPEN_BRACKET -> expression
+            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET, IDENTIFIER, RETURN_KEYWORD, IF_KEYWORD, WHILE_KEYWORD, OPEN_BRACKET -> expression
             DOT -> TODO("member access not supported yet")
             else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
         }
@@ -141,6 +141,15 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 checkForOperator(firstAsLocalVariable)
             }
         }
+        CHARACTER -> {
+            val str = first.content[1]
+            IntegerValueExpression(str.toByte().toInt(), BaseType(TypeEnum.UINT8))
+        }
+        STRING -> {
+            StringLiteralExpression(first.content.substring(1, first.content.lastIndex)
+                    .replace("\\n","\n")
+                    .replace("\\t","\t"))
+        }
 
         else -> TODO("can't support expressions that start with type ${first.type}")
     }
@@ -148,7 +157,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
 
 private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Statement {
     // this compiles ONE SINGLE STATEMENT
-    val firstToken = tokens.remove()
+    var firstToken = tokens.remove()
     return when (firstToken.type) {
         SEMICOLON -> NoOpStatement
         IF_KEYWORD -> {
@@ -156,6 +165,35 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
             val conditional = parseExpression(tokens, initialAST, localVariables)
             val block = parseBlock(tokens, initialAST, localVariables)
             IfStatement(conditional, block)
+        }
+        ASTERISK -> {
+            // it's a deref
+            val nextToken = tokens.remove()
+            val ptr = when (nextToken.type) {
+                OPEN_PARENTHESES -> {
+                    val expression = parseExpression(tokens, initialAST, localVariables)
+                    tokens.remove().checkType(CLOSE_PARENTHESES, "expecting a close parentheses here")
+                    expression
+                }
+                IDENTIFIER -> {
+                    val variable = localVariables.firstOrNull { it.name == nextToken.content } ?: throw ParseException("can't find variable ${nextToken.content}", nextToken)
+                    if(variable.type !is PointerType) {
+                        throw ParseException("variable must be of pointer type to be dereferenced", nextToken)
+                    }
+                    VariableAccessExpression(variable.name, variable.type)
+                }
+                else -> throw ParseException("unexpected token", nextToken)
+            }
+            val equals =  tokens.remove()
+            if(equals.type != OPERATOR || equals.content != "=") {
+                throw ParseException("expecting a = token", equals)
+            }
+            val value = parseExpression(tokens, initialAST, localVariables)
+            // typecheck
+            if(ptr.type !is PointerType) throw ParseException("pointer value needs to be of type pointer")
+            val pointerValue = ptr.type as PointerType
+            if(pointerValue.type != value.type) throw ParseException("expecting value of type ${pointerValue.type}, got ${value.type}", equals)
+            MemoryWriteStatement(ptr, value)
         }
         WHILE_KEYWORD -> {
             val conditional = parseExpression(tokens, initialAST, localVariables)
@@ -169,42 +207,39 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
         IDENTIFIER -> {
             // well, it might be a function call, or it might be a equals-type thing
             // check the next character
-            if(firstToken.content == "val" || firstToken.content == "var") {
-                val isFinal = firstToken.content == "val"
-                val identifier = tokens.remove().checkType(IDENTIFIER, "looking for variable identifier").content
-                var nextToken = tokens.remove()
-                val type = if (nextToken.type == OPERATOR && nextToken.content == "<") {
-                    // typedef
-                    val typeTokens = tokens.removeWhile { !(it.type == OPERATOR && it.content == ">") }
-                    val type = parseType(typeTokens, nextToken)
-                    if(tokens.remove().content != ">") error("hm")
-                    nextToken = tokens.remove()
-                    type
-                } else null
+            val isMutable = if(firstToken.content == "mut") {
+                firstToken = tokens.remove()
+                true
+            } else false
 
-                if(!(nextToken.type == OPERATOR && nextToken.content == "=")){
+            if(firstToken.content == "val") {
+                val identifier = tokens.remove().checkType(IDENTIFIER, "looking for variable identifier").content
+                val nextToken = tokens.remove()
+                if (!(nextToken.type == OPERATOR && nextToken.content == "=")) {
                     throw ParseException("expecting an equal sign", nextToken)
                 }
                 val expression = parseExpression(tokens, initialAST, localVariables)
-                if(type != null) {
-                    if(expression is IntegerValueExpression && type is BaseType && type.type != expression.type.type) {
-                        // okay, we gotta make sure types are good
-                        // because they aren't the same
-                        // if expression is unsigned but type is signed, error
-                        if(expression.type.type.isUnsigned && !type.type.isUnsigned){
-                            throw ParseException("can't implicit cast from ${expression.type} to $type",nextToken)
-                        } else {
-                            TODO("I just can't deal oof")
-                        }
-                    }
-                    if(expression.type != type) {
-                        throw ParseException("type failure - looking for $type but got ${expression.type}", nextToken)
-                    }
+                DeclareVariableStatement(
+                        variableName = identifier,
+                        final = !isMutable,
+                        expression = expression
+                )
+            } else if(firstToken.content in initialAST.structs.map { it.name }.plus(TypeEnum.values().flatMap { it.names })) {
+                val firstTokens = listOf(firstToken) + tokens.removeWhile { it.type != OPERATOR}
+                val identifier = firstTokens.last()
+                val type = parseType(firstTokens.dropLast(1), identifier)
+                val nextToken = tokens.remove()
+                if (!(nextToken.type == OPERATOR && nextToken.content == "=")) {
+                    throw ParseException("expecting an equal sign", nextToken)
+                }
+                val expression = parseExpression(tokens, initialAST, localVariables)
+                if(expression.type != type) {
+                    throw ParseException("mismatched types: expecting $type but got ${expression.type}",nextToken)
                 }
                 DeclareVariableStatement(
-                    variableName = identifier,
-                    final = isFinal,
-                    expression = expression
+                        variableName = identifier.content,
+                        final = !isMutable,
+                        expression = expression
                 )
             } else if(tokens.peek()!!.type == OPERATOR) {
                 val operator = tokens.remove()

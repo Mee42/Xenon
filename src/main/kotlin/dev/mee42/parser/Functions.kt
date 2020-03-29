@@ -33,6 +33,7 @@ data class InitialFunction(val name: String,
     }
     val identifier: String = name + id
 }
-data class InitialAST(val functions: List<InitialFunction>) {
-    fun withOther(other: InitialAST): InitialAST = InitialAST(this.functions + other.functions)
+class Struct(val name: String)
+data class InitialAST(val functions: List<InitialFunction>, val structs: List<Struct>) {
+    fun withOther(other: InitialAST): InitialAST = InitialAST(this.functions + other.functions, structs)
 }

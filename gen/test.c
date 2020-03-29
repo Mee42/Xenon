@@ -1,9 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef struct {
+	int a;
+} foo;
+
+
 int main() {
-    for(int i = 0; i < 100; i++){
-        printf("%p\n",malloc(10));
-    }
+	//foo foo = { 1 };
+	foo bar = { 2 };
+	bar = bar;
     return 0;
 }
