@@ -6,6 +6,8 @@ import dev.mee42.asm.assemble
 import dev.mee42.nasm.randomID
 import dev.mee42.opt.optimize
 import dev.mee42.parser.*
+import java.applet.Applet
+import java.applet.AudioClip
 import java.io.File
 import java.lang.RuntimeException
 import java.time.Duration
@@ -17,16 +19,21 @@ class InternalCompilerException(message: String): CompilerException(message)
 fun main(args: Array<String>) {
     val file = File(args.firstOrNull() ?: error("you need to specify a file"))
     var millis = 0L
-    val program  = compile(file.readText(), stdlib)
+    val (program, compileTime)  = compile(file.readText(), stdlib)
+    beep()
     time("all") {
         for (i in 0..100) {
             val m = run(program).toMillis()
             if(i > 10) millis += m
         }
     }
+    beep()
     System.out.flush()
     System.err.flush()
-    System.err.println("\nTOTAL: $millis ms")
+    System.err.println("\nCompile Time: ${compileTime.toMillis()}\nTOTAL: $millis ms")
+}
+fun beep() {
+    java.awt.Toolkit.getDefaultToolkit().beep()
 }
 fun resetCompiler(){
     StringInterner.reset()
@@ -48,10 +55,10 @@ private fun <A> time(name: String, block: () -> A): A {
     return a
 }
 
-private fun compile(xenon: String, stdlib: XenonLibrary): File {
+private fun compile(xenon: String, stdlib: XenonLibrary): Pair<File,Duration> {
     val id = randomID()
     System.err.println("running, id: $id")
-    val compiled = time("compile") { compile(xenon) }
+    val (compiled, compileTime) = timeAndGet("compile") { compile(xenon) }
     val stringContent =  """
 extern printf
 extern malloc
@@ -88,7 +95,7 @@ section .data
     pb.inheritIO()
     val result = pb.start().waitFor()
     if(result != 0) error("exiting with code $result")
-    return File(filePath)
+    return File(filePath) to compileTime
 }
 
 private fun run(file: File): Duration {

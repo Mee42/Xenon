@@ -259,10 +259,11 @@ private inline fun doTimes(i: Int,max: Int, block: () -> Boolean) {
 private infix fun <A,B,C> Pair<A,B>.to3(other: C): Triple<A,B,C> = Triple(first, second, other)
 
 private fun parse(string: String): List<AssemblyInstruction> {
-    val preprocessed = dev.mee42.xpp.preprocess(string)
-    val tokens = dev.mee42.lexer.lex(preprocessed)
-    val initialAST = parsePass1(tokens).withOther(standardLibrary)
-    val ast = parsePass2(initialAST)
-    val optimized = dev.mee42.opt.optimize(ast)
-    return assemble(optimized)
+//    val preprocessed = dev.mee42.xpp.preprocess(string)
+//    val tokens = dev.mee42.lexer.lex(preprocessed)
+//    val initialAST = parsePass1(tokens).withOther(stdlib)
+//    val ast = parsePass2(initialAST)
+//    val optimized = dev.mee42.opt.optimize(ast)
+//    return assemble(optimized)
+    TODO()
 }

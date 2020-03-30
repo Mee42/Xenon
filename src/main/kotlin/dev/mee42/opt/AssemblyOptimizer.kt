@@ -11,14 +11,15 @@ private class PeepholeOptimizerBuilder: OptAssembler {
     var size: Int? = null
     var runner: PeepholeRunner? = null
     var enabled = true
-    fun build() = PeepholeOptimizer(size!!, runner!!, enabled)
+    var name: String = "unnamed"
+    fun build() = PeepholeOptimizer(size!!, runner!!, enabled, name)
     @Builder
     fun runner(args: PeepholeRunner){
         runner = args
     }
 }
 typealias PeepholeRunner =  (List<AssemblyInstruction>) -> List<AssemblyInstruction>?
-private class PeepholeOptimizer(val size: Int, val runner: PeepholeRunner, val enabled: Boolean)
+private class PeepholeOptimizer(val size: Int, val runner: PeepholeRunner, val enabled: Boolean, val name: String)
 private class OptimizationSuite {
     val peepholes = mutableListOf<PeepholeOptimizer>()
     @Builder
@@ -37,17 +38,20 @@ private val optimizations = optimizationSuite {
     peephole { // push mov merge
         size = 2
         enabled = true
+        name = "merge mov and push"
         runner { (a, b) ->
             if(a !is Mov) return@runner null
             if(b !is Push) return@runner null
-            if(a.reg1 != AdvancedRegister(SizedRegister(BIT64, Register.A), isMemory = false, size = BIT64)) return@runner null
-            if(b.register != AdvancedRegister(SizedRegister(BIT64, Register.A), isMemory = false, size = BIT64)) return@runner null
+//            println("testing $a and $b")
+            if(a.reg1 != SizedRegister(BIT64, Register.A).advanced())  return@runner null
+            if(b.register != SizedRegister(BIT64, Register.A).advanced()) return@runner null
             listOf(Push(register = a.reg2))
         }
     }
     peephole {
         size = 1
         enabled = true
+        name = "remove 0 add/subs"
         runner { (a) ->
             if(a is Add && a.reg2 is StaticValueAdvancedRegister && a.reg2.value == 0L ||
                     a is Sub && a.reg2 is StaticValueAdvancedRegister && a.reg2.value == 0L) {
@@ -58,17 +62,34 @@ private val optimizations = optimizationSuite {
     peephole {
         size = 2
         enabled = true
+        name = "merge double mov"
         runner { (a,b) ->
             if(a !is Mov) return@runner null
             if(b !is Mov) return@runner null
             if(a.reg1.isMemory) return@runner null
             if(a.reg1 != b.reg2) return@runner null
+            if(a.reg2.isMemory && b.reg1.isMemory) return@runner null
             listOf(Mov(
                     reg1 = b.reg1,
                     reg2 = a.reg2
             ))
         }
-    } // TODO: make sure the optimizations are actually applied (thinking - live edit an asm file?)
+    }
+    peephole {
+        size = 2
+        enabled = true
+        name = "merge mov static value and push"
+        runner { (a,b) ->
+            if(a !is Mov) return@runner null
+            if(b !is Push) return@runner null
+            if(a.reg1 != SizedRegister(BIT32, Register.A).advanced()) return@runner null
+            if(b.register != SizedRegister(BIT64, Register.A).advanced()) return@runner null
+            if(a.reg2 !is StaticValueAdvancedRegister) return@runner null
+            listOf(
+                    Push(StaticValueAdvancedRegister(a.reg2.value, BIT64))
+            )
+        }
+    }
 }
 
 fun optimize(asm: Assembly): Assembly {
@@ -78,10 +99,20 @@ private fun optimize(assembly: List<AssemblyInstruction>): List<AssemblyInstruct
     for(i in assembly.indices) {
         for(optimization in optimizations.peepholes) {
             if(!optimization.enabled) continue
-            if(i + optimization.size >= assembly.size) continue
+            if(i + optimization.size > assembly.size) continue
             val subset = assembly.subList(i, i + optimization.size)
+                    .map {
+                        var f = it
+                        while(f is CommentedLine) {
+                            f = f.line
+                        }
+                        f
+                    }
+//            println("testing \"${optimization.name}\" on $subset")
             val new = optimization.runner(subset) ?: continue
-            return assembly.subList(0,i) + new + assembly.subList(i + optimization.size, assembly.size)
+//            println("succeeded!")
+            println("applying optimization ${optimization.name}: $subset -> $new ")
+            return optimize(assembly.subList(0,i) + new + assembly.subList(i + optimization.size, assembly.size))
         }
     }
     return assembly

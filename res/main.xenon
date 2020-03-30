@@ -7,6 +7,18 @@ int main() {
         free(copy) 
         i = i + 1;
     }
+    i = 0
+    while not(i / 10000 == 0) {
+       foo()
+       mut val ran = false 
+       if ((i / 5) * 5) == 1 {
+            i = i + i
+            ran = true
+        }
+        if not(ran) {
+            i = i + 13
+        } 
+    }
     return 0
 }
 int foo() {

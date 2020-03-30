@@ -6,42 +6,45 @@ import dev.mee42.asm.RegisterSize.*
 
 sealed class AssemblyInstruction(strIn: String) {
     open val str = "    $strIn"
-    class Call(labelName: String): AssemblyInstruction("call $labelName")
+    data class Call(val labelName: String): AssemblyInstruction("call $labelName")
     object Ret: AssemblyInstruction("ret")
     object Nop: AssemblyInstruction("nop")
 
-    class Mov(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("mov $reg1, $reg2") {
+    data class Mov(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("mov $reg1, $reg2") {
         constructor(reg1: Register, reg2: Register, size: RegisterSize) : this(
             reg1 = SizedRegister(size, reg1).advanced(),
             reg2 = SizedRegister(size, reg2).advanced()
         )
+        override fun toString() = str
     }
-    class MovToLabel(reg: Register, labelName: String): AssemblyInstruction("mov ${SizedRegister(BIT64,reg)}, $labelName")
-    class MovSX(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("movsx $reg1, $reg2")
-    class MovZX(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("movzx $reg1, $reg2")
+    data class MovToLabel(val reg: Register,val labelName: String): AssemblyInstruction("mov ${SizedRegister(BIT64,reg)}, $labelName")
+    data class MovSX(val reg1: SizedRegister,val reg2: AdvancedRegister): AssemblyInstruction("movsx $reg1, $reg2")
+    data class MovZX(val reg1: SizedRegister, val reg2: AdvancedRegister): AssemblyInstruction("movzx $reg1, $reg2")
 
-    class Shl(reg1: SizedRegister, i: Int): AssemblyInstruction("shl $reg1, $i")
+    data class Shl(val reg1: SizedRegister, val i: Int): AssemblyInstruction("shl $reg1, $i")
 
-    class Add(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("add $reg1, $reg2")
-    class Sub(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("sub $reg1, $reg2")
+    data class Add(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("add $reg1, $reg2")
+    data class Sub(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("sub $reg1, $reg2")
 
     //class IMul(reg1: AdvancedRegister): AssemblyInstruction("    imul $reg1")
-    class Mul(reg1: AdvancedRegister): AssemblyInstruction("mul $reg1")
-    class Div(reg1: AdvancedRegister): AssemblyInstruction("div $reg1")
-    class IDiv(reg1: AdvancedRegister): AssemblyInstruction("idiv $reg1")
+    data class Mul(val reg1: AdvancedRegister): AssemblyInstruction("mul $reg1")
+    data class Div(val reg1: AdvancedRegister): AssemblyInstruction("div $reg1")
+    data class IDiv(val reg1: AdvancedRegister): AssemblyInstruction("idiv $reg1")
 
     object ConvertToOctoword: AssemblyInstruction("cqo")
     object ConvertToQuadword: AssemblyInstruction("cdq")
     object ConvertToDoublword: AssemblyInstruction("cwd")
 
-    class Push(val register: AdvancedRegister): AssemblyInstruction("push $register") {
+    data class Push(val register: AdvancedRegister): AssemblyInstruction("push $register") {
         constructor(register: Register): this(SizedRegister(BIT64, register).advanced())
+
+        override fun toString() = str
     }
-    class Pop(val register: Register): AssemblyInstruction("pop ${SizedRegister(BIT64, register)}")
+    data class Pop(val register: Register): AssemblyInstruction("pop ${SizedRegister(BIT64, register)}")
 
     class Custom(str: String): AssemblyInstruction(str)
 
-    class Xor(reg1: SizedRegister, reg2: AdvancedRegister): AssemblyInstruction("xor $reg1, $reg2") {
+    data class Xor(val reg1: SizedRegister, val reg2: AdvancedRegister): AssemblyInstruction("xor $reg1, $reg2") {
         companion object {
             fun useToZero(register: SizedRegister): Xor {
                 return Xor(
@@ -51,7 +54,7 @@ sealed class AssemblyInstruction(strIn: String) {
             }
         }
     }
-    class Label(val name: String): AssemblyInstruction("$name:") {
+    data class Label(val name: String): AssemblyInstruction("$name:") {
         companion object {
             private var used = 0
             fun next():Label {
@@ -59,13 +62,23 @@ sealed class AssemblyInstruction(strIn: String) {
             }
         }
 
+        override fun toString(): String {
+            return "$name:"
+        }
         override val str: String = "$name:"
     }
-    class Jump(to: String): AssemblyInstruction("jmp $to")
-    class ConditionalJump(conditional: ComparisonOperator, label: Label): AssemblyInstruction("${conditional.jump} ${label.name}")
-    class Comment(content: String): AssemblyInstruction("; $content")
-    class CommentedLine(line: AssemblyInstruction, comment: String): AssemblyInstruction("OHNO") {
+    data class Jump(val to: String): AssemblyInstruction("jmp $to")
+    data class ConditionalJump(val conditional: ComparisonOperator, val label: Label): AssemblyInstruction("${conditional.jump} ${label.name}")
+    data class Comment(val content: String): AssemblyInstruction("; $content")
+    class CommentedLine(val line: AssemblyInstruction, val comment: String): AssemblyInstruction("OHNO") {
         override val str: String = "$line ; $comment"
+        override fun equals(other: Any?): Boolean {
+            return other is CommentedLine && line == other.line
+        }
+
+        override fun hashCode(): Int {
+            return line.hashCode()
+        }
     }
 
     class SetCC(comparison: ComparisonOperator, register: Register):

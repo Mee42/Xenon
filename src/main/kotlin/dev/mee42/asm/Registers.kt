@@ -34,7 +34,7 @@ enum class Register(val bit64: String, val bit32: String, val bit16: String, val
     constructor(i: Int): this("r$i","r${i}d","r${i}w","r${i}b")
 }
 
-class SizedRegister(val size: RegisterSize, val register: Register) {
+data class SizedRegister(val size: RegisterSize, val register: Register) {
     override fun toString() = when(size) {
         BIT64 -> register.bit64
         BIT32 -> register.bit32
@@ -52,14 +52,14 @@ class StaticValueAdvancedRegister(val value: Long, size: RegisterSize): Advanced
 open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean,  val size: RegisterSize, val offset: Int = 0) {
     override fun toString(): String {
         if(!isMemory) return register.toString()
-        if(offset == 0) return "[$register]"
-        if(offset > 0) return "[$register + $offset]"
+        if(offset == 0) return "${size.asmName} [$register]"
+        if(offset > 0) return "${size.asmName} [$register + $offset]"
         // offset < 0
-        return "[$register - ${-1 * offset}]"
+        return "${size.asmName} [$register - ${-1 * offset}]"
     }
 
     override fun equals(other: Any?): Boolean {
-        if(other is StaticValueAdvancedRegister) return false
+//        if(other is StaticValueAdvancedRegister) return false
         if(other !is AdvancedRegister) return false
         if(other.register != this.register) return false
         if(other.isMemory != this.isMemory) return false
