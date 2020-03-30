@@ -1,24 +1,25 @@
 int main() {
-    val str = "Hello, World"
-    val copy = clone(str);
-    *(str + 4) = 'x' 
-    println(str)
-    println(copy)
+    mut val i = 0
+    while not(i == 100000) {
+        val str = "Hello, World"
+        val copy = clone(str);
+        *(str + 4) = 'x' 
+        free(copy) 
+        i = i + 1;
+    }
     return 0
 }
-
-void println(char* string){
-    printf("%s\n",string);
-    return 0;
+int foo() {
+    int a = 1
+    if a == 1 { }
 }
-
 char* clone(char* string){
     mut val i = string
     while not((*i) == cast_char(0)) {
         i = i + 1
     }
     val size = cast_int(i - string);
-   val newStr = malloc_char(size + 1);
+    val newStr = malloc_char(size + 1);
     i = string
     mut val j = newStr
     while not((*i) == cast_char(0)) {

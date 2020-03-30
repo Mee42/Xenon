@@ -22,8 +22,8 @@ sealed class AssemblyInstruction(strIn: String) {
 
     class Shl(reg1: SizedRegister, i: Int): AssemblyInstruction("shl $reg1, $i")
 
-    class Add(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("add $reg1, $reg2")
-    class Sub(reg1: AdvancedRegister, reg2: AdvancedRegister): AssemblyInstruction("sub $reg1, $reg2")
+    class Add(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("add $reg1, $reg2")
+    class Sub(val reg1: AdvancedRegister, val reg2: AdvancedRegister): AssemblyInstruction("sub $reg1, $reg2")
 
     //class IMul(reg1: AdvancedRegister): AssemblyInstruction("    imul $reg1")
     class Mul(reg1: AdvancedRegister): AssemblyInstruction("mul $reg1")
@@ -34,8 +34,10 @@ sealed class AssemblyInstruction(strIn: String) {
     object ConvertToQuadword: AssemblyInstruction("cdq")
     object ConvertToDoublword: AssemblyInstruction("cwd")
 
-    class Push(register: Register): AssemblyInstruction("push ${SizedRegister(BIT64, register)}")
-    class Pop(register: Register): AssemblyInstruction("pop ${SizedRegister(BIT64, register)}")
+    class Push(val register: AdvancedRegister): AssemblyInstruction("push $register") {
+        constructor(register: Register): this(SizedRegister(BIT64, register).advanced())
+    }
+    class Pop(val register: Register): AssemblyInstruction("pop ${SizedRegister(BIT64, register)}")
 
     class Custom(str: String): AssemblyInstruction(str)
 

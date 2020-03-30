@@ -190,7 +190,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
 
 }
 
-private object StringInterner {
+object StringInterner {
     private val map = mutableMapOf<String, String>()
     private const val prefix = "str_n"
     private var i: Int = 0
@@ -206,6 +206,9 @@ private object StringInterner {
             }
             else -> f to null
         }
+    }
+    fun reset(){
+        map.clear()
     }
 }
 

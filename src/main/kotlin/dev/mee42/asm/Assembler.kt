@@ -86,7 +86,7 @@ private fun assembleBlock(variableBindings: List<Variable>,
                 val expression = statement.expression
                 val size = expression.type.size
                 val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size, localVariableLocation)
-                localVariableLocation -= size.bytes
+                localVariableLocation -= 8
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
                 this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
                 localVariables.add(Variable(

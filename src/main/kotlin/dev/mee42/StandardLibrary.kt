@@ -308,6 +308,22 @@ private val malloc = lib {
             jmp malloc_byte
         """.trimIndent()
     }
+    function {
+        name = "free"
+        id = "_char"
+        arguments = listOf("ptr".arg("char*"))
+        returnType = type("void")
+        assembly = """
+        free_char:
+            push rbp
+            mov rbp, rsp
+            mov rdi, [rbp + 16]
+            xor rax, rax
+            call malloc
+            pop rbp
+            ret
+        """.trimIndent()
+    }
 }
 
 val stdlib = println + casts + bools + malloc + printf

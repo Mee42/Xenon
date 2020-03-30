@@ -32,10 +32,6 @@ enum class Register(val bit64: String, val bit32: String, val bit16: String, val
     ERROR(-1);
 
     constructor(i: Int): this("r$i","r${i}d","r${i}w","r${i}b")
-    companion object {
-        val argumentRegisters = listOf(B, C, D, R8, R9)
-        val usable = listOf(B, C, D, R8, R9, R10, R11, R12, R13, R14, R15)
-    }
 }
 
 class SizedRegister(val size: RegisterSize, val register: Register) {
@@ -47,7 +43,7 @@ class SizedRegister(val size: RegisterSize, val register: Register) {
     }
 }
 
-class StaticValueAdvancedRegister(private val value: Long, size: RegisterSize): AdvancedRegister(SizedRegister(size, Register.ERROR), false,size) {
+class StaticValueAdvancedRegister(val value: Long, size: RegisterSize): AdvancedRegister(SizedRegister(size, Register.ERROR), false,size) {
     override fun toString(): String {
         return size.asmName + " $value"
     }
@@ -61,6 +57,25 @@ open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean, 
         // offset < 0
         return "[$register - ${-1 * offset}]"
     }
+
+    override fun equals(other: Any?): Boolean {
+        if(other is StaticValueAdvancedRegister) return false
+        if(other !is AdvancedRegister) return false
+        if(other.register != this.register) return false
+        if(other.isMemory != this.isMemory) return false
+        if(other.size != this.size) return false
+        if(other.offset != this.offset) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = register.hashCode()
+        result = 31 * result + isMemory.hashCode()
+        result = 31 * result + size.hashCode()
+        result = 31 * result + offset
+        return result
+    }
+
     init {
         if(isMemory && register.size != BIT64) error("all memory access must be 64-bit")
         if(offset != 0 && !isMemory) error("can't have an offset without accessing memory")
