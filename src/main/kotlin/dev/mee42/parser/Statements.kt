@@ -1,5 +1,7 @@
 package dev.mee42.parser
 
+import dev.mee42.Config
+
 
 sealed class Statement{
     abstract val localVariableMaxBytes: Int
@@ -34,7 +36,17 @@ data class MemoryWriteStatement(val location: Expression, val value: Expression)
 
 data class IfStatement(val conditional: Expression, val block: Block): Statement() {
     override val localVariableMaxBytes: Int = block.localVariableMaxBytes
+    companion object {
+        fun create(conditional: Expression, block: Block): Statement {
+            return if(conditional is IntegerValueExpression && conditional.value == 0 && Config.optimize) {
+                NoOpStatement // 0 is falsy
+            } else {
+                IfStatement(conditional, block)
+            }
+        }
+    }
 }
+
 data class WhileStatement(val conditional: Expression, val block: Block): Statement() {
     override val localVariableMaxBytes: Int = block.localVariableMaxBytes
 }

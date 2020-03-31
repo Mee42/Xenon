@@ -11,8 +11,9 @@ fun parsePass1(tokens: List<Token>): InitialAST {
     val functions = mutableListOf<InitialFunction>()
     while(queue.isNotEmpty()) {
         val start = queue.peek()!!
+//        var attributes = mutableListOf<String>()
         when(start.type) {
-            TokenType.IDENTIFIER -> {
+            TokenType.IDENTIFIER, TokenType.ATTRIBUTE -> {
                 functions.add(initialPassParseFunction(queue))
             }
             TokenType.STRUCT_KEYWORD -> {
@@ -25,7 +26,6 @@ fun parsePass1(tokens: List<Token>): InitialAST {
 }
 
 
-// function @attributes @foo @pure @const foo(int* a, int b, int c) int { list; of; expressions; }
 private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFunction {
     // we already consumer the function keyword, lol
     // lets take all the attributes

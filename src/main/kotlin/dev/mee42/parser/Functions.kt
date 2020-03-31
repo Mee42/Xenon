@@ -5,7 +5,7 @@ import dev.mee42.lexer.Token
 data class Argument(val name: String, val type: Type)
 
 class AssemblyFunction(name: String, arguments: List<Argument>, returnType: Type, id: String): Function(name, arguments, returnType, id)
-class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, id: String, val content: Block): Function(name, arguments, returnType, id) {
+class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, id: String, val content: Block, val attributes: List<String>): Function(name, arguments, returnType, id) {
     override fun toString(): String {
         return "Function-$name$id($arguments)$returnType{$content}"
     }

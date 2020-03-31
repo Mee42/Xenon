@@ -70,6 +70,29 @@ private val println = lib {
                 ret
         """.trimIndent()
     }
+    function {
+        name = "println"
+        id = "_bool"
+        arguments = listOf("b".arg("bool"))
+        assembly = """
+            println_bool:
+                push rbp
+                mov rbp, rsp
+                mov rax, [rbp + 16]
+                cmp al, 0
+                je println_bool_L1
+                mov rdi, printf_format_true
+                jmp println_bool_L2
+                println_bool_L1:
+                mov rdi, printf_format_false
+                println_bool_L2:
+                xor rax, rax
+                call printf
+                xor rax, rax
+                pop rbp
+                ret
+        """.trimIndent()
+    }
 
     extraText("""
         printf_main:
@@ -91,7 +114,8 @@ private val println = lib {
             printf_format_newline: db 10, 0
             printf_format_char_newline: db "%c", 10, 0
             printf_format_char: db "%c", 0
-            
+            printf_format_true: db "true", 10, 0
+            printf_format_false: db "false", 10, 0
         """.trimIndent()
     )
 }

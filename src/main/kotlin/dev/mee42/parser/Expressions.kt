@@ -10,6 +10,7 @@ class VariableAccessExpression(val variableName: String, type: Type): Expression
         return "VARIABLE($variableName)"
     }
 }
+class BlockExpression(val statements: List<Statement>,val  last: Expression): Expression(last.type)
 class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
 class IntegerValueExpression(val value: Int, override val type: BaseType) :Expression(type) {
     override fun toString(): String {
@@ -33,7 +34,7 @@ data class MathExpression(val var1: Expression, val var2: Expression, val mathTy
     }
 }
 
-data class EqualsExpression(val var1: Expression, val var2: Expression): Expression(BaseType(TypeEnum.BOOLEAN)) {
+data class EqualsExpression(val var1: Expression, val var2: Expression, val negate: Boolean): Expression(BaseType(TypeEnum.BOOLEAN)) {
     init {
         if(var1.type is PointerType && var2.type !is PointerType || var2.type is PointerType && var1.type !is PointerType) {
             error("can't compare pointer to integer")
@@ -41,7 +42,7 @@ data class EqualsExpression(val var1: Expression, val var2: Expression): Express
         if(var1.type is BaseType) {
             val t1 = var1.type as BaseType
             val t2 = var2.type as BaseType
-            if(t1.size != t2.size) error("integers need to be the same size to compare")
+            if(t1 != t2) error("can't compare different types $t1 and $t2")
         }
     }
 }

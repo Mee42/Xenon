@@ -23,7 +23,14 @@ class OptimizerTests: StringSpec({
         ), emptyList())).asm shouldBe listOf(
                 AssemblyInstruction.Push(StaticValueAdvancedRegister(5, BIT64))
         )
-
+    }
+    "merge double mov" {
+        optimize(Assembly(listOf(
+                AssemblyInstruction.Mov(SizedRegister(BIT64, Register.A).advanced(), StaticValueAdvancedRegister(5, BIT64)),
+                AssemblyInstruction.Mov(SizedRegister(BIT64, Register.B).advanced(), SizedRegister(BIT64, Register.A).advanced())
+        ), emptyList())).asm shouldBe listOf(
+                AssemblyInstruction.Mov(SizedRegister(BIT64, Register.B).advanced(),  StaticValueAdvancedRegister(5, BIT64))
+        )
     }
 
 })

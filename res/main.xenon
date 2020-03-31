@@ -1,43 +1,16 @@
+
+
+ // we could say, for now, that inline functions must have a single return statement as the last statement
+
+int foo(int a, int b) {
+    mut int test = 4
+    if a == b { test = 7 } 
+    if a != b { test = 8 }
+    return test
+}
+
 int main() {
-    mut val i = 0
-    while not(i == 100000) {
-        val str = "Hello, World"
-        val copy = clone(str);
-        *(str + 4) = 'x' 
-        free(copy) 
-        i = i + 1;
-    }
-    i = 0
-    while not(i / 10000 == 0) {
-       foo()
-       mut val ran = false 
-       if ((i / 5) * 5) == 1 {
-            i = i + i
-            ran = true
-        }
-        if not(ran) {
-            i = i + 13
-        } 
-    }
-    return 0
+    int i = foo(5, 4) 
+    println(i)
+    return 0;
 }
-int foo() {
-    int a = 1
-    if a == 1 { }
-}
-char* clone(char* string){
-    mut val i = string
-    while not((*i) == cast_char(0)) {
-        i = i + 1
-    }
-    val size = cast_int(i - string);
-    val newStr = malloc_char(size + 1);
-    i = string
-    mut val j = newStr
-    while not((*i) == cast_char(0)) {
-        *j = *i
-        j = j + 1 
-        i = i + 1
-    }
-    return newStr 
-} 

@@ -1,6 +1,7 @@
 package dev.mee42.opt
 
 import dev.mee42.Builder
+import dev.mee42.Config
 import dev.mee42.asm.*
 import dev.mee42.asm.AssemblyInstruction.*
 import dev.mee42.asm.RegisterSize.*
@@ -82,12 +83,35 @@ private val optimizations = optimizationSuite {
         runner { (a,b) ->
             if(a !is Mov) return@runner null
             if(b !is Push) return@runner null
-            if(a.reg1 != SizedRegister(BIT32, Register.A).advanced()) return@runner null
+            if(a.reg1 != SizedRegister(BIT64, Register.A).advanced()) return@runner null
             if(b.register != SizedRegister(BIT64, Register.A).advanced()) return@runner null
             if(a.reg2 !is StaticValueAdvancedRegister) return@runner null
+            if(a.reg2.size != BIT64) return@runner null
             listOf(
                     Push(StaticValueAdvancedRegister(a.reg2.value, BIT64))
             )
+        }
+    }
+    peephole {
+        size = 1
+        enabled = true
+        name = "remove nops"
+        runner { (a) ->
+            if(a is Nop) emptyList() else null
+        }
+    }
+    peephole {
+        size = 1
+        enabled = true
+        name = "mov 0 replaced with xor zero"
+        runner { (a) ->
+            when {
+                a !is Mov -> null
+                a.reg2 !is StaticValueAdvancedRegister -> null
+                a.reg2.value != 0L -> null
+                a.reg1.isMemory -> null
+                else -> listOf(Xor.useToZero(a.reg1.register))
+            }
         }
     }
 }
@@ -111,7 +135,7 @@ private fun optimize(assembly: List<AssemblyInstruction>): List<AssemblyInstruct
 //            println("testing \"${optimization.name}\" on $subset")
             val new = optimization.runner(subset) ?: continue
 //            println("succeeded!")
-            println("applying optimization ${optimization.name}: $subset -> $new ")
+            if(Config.isPicked(Config.Flag.PRINT_OPTIMIZATIONS)) println("applying optimization ${optimization.name}: $subset -> $new ")
             return optimize(assembly.subList(0,i) + new + assembly.subList(i + optimization.size, assembly.size))
         }
     }

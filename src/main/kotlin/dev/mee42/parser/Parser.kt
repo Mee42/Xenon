@@ -20,11 +20,6 @@ class ParseException private constructor(): CompilerException() {
 }
 
 
-fun parse(tokens: List<Token>): AST {
-    val initialAST = parsePass1(tokens)
-    return parsePass2(initialAST)
-}
-
 fun Token.checkType(type: TokenType, message: String): Token {
     if(this.type != type) throw ParseException(message, this)
     return this

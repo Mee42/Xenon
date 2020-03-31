@@ -1,13 +1,12 @@
 package dev.mee42
 
+import dev.mee42.Config.Flag.*
 import dev.mee42.asm.Assembly
-import dev.mee42.asm.StringInterner
 import dev.mee42.asm.assemble
+import dev.mee42.lexer.Token
 import dev.mee42.nasm.randomID
 import dev.mee42.opt.optimize
 import dev.mee42.parser.*
-import java.applet.Applet
-import java.applet.AudioClip
 import java.io.File
 import java.lang.RuntimeException
 import java.time.Duration
@@ -16,48 +15,33 @@ open class CompilerException(message: String = ""): RuntimeException(message)
 
 class InternalCompilerException(message: String): CompilerException(message)
 
+
 fun main(args: Array<String>) {
     val file = File(args.firstOrNull() ?: error("you need to specify a file"))
-    var millis = 0L
     val (program, compileTime)  = compile(file.readText(), stdlib)
-    beep()
-    time("all") {
-        for (i in 0..100) {
-            val m = run(program).toMillis()
-            if(i > 10) millis += m
-        }
-    }
-    beep()
-    System.out.flush()
-    System.err.flush()
-    System.err.println("\nCompile Time: ${compileTime.toMillis()}\nTOTAL: $millis ms")
-}
-fun beep() {
-    java.awt.Toolkit.getDefaultToolkit().beep()
-}
-fun resetCompiler(){
-    StringInterner.reset()
+    val runtime = run(program).toMillis()
+    if(Config.isPicked(PRINT_END_TIMING)) System.err.println("\nCompile Time: ${compileTime.toMillis()}\nTOTAL: $runtime ms")
 }
 
-private fun <A> timeAndGet(name: String, block: () -> A): Pair<A,Duration> {
+private fun <A> timeAndGet(name: String, print: Boolean = true , block: () -> A): Pair<A,Duration> {
     val start = System.nanoTime()
     val a = block()
     val end = System.nanoTime()
     val dur = Duration.ofNanos(end - start)
-    println("$name: " + dur.toMillis() + "ms")
+    if(print && Config.isPicked(PRINT_ALL_TIMINGS)) println("$name: " + dur.toMillis() + "ms")
     return a to dur
 }
 private fun <A> time(name: String, block: () -> A): A {
     val start = System.nanoTime()
     val a = block()
     val end = System.nanoTime()
-    println("$name: " + Duration.ofNanos(end - start).toMillis() + "ms")
+    if(Config.isPicked(PRINT_ALL_TIMINGS)) println("$name: " + Duration.ofNanos(end - start).toMillis() + "ms")
     return a
 }
 
 private fun compile(xenon: String, stdlib: XenonLibrary): Pair<File,Duration> {
-    val id = randomID()
-    System.err.println("running, id: $id")
+    val id = "main"//randomID()
+    if(Config.isPicked(PRINT_ASM_ID))System.err.println("running, id: $id")
     val (compiled, compileTime) = timeAndGet("compile") { compile(xenon) }
     val stringContent =  """
 extern printf
@@ -101,7 +85,7 @@ section .data
 private fun run(file: File): Duration {
     val runProcess = ProcessBuilder("bash", "-c", file.path)
     runProcess.inheritIO()
-    val (process, time) = timeAndGet("run") {
+    val (process, time) = timeAndGet("run", print = false) {
         val process = runProcess.start()
         process.waitFor()
         process
@@ -120,9 +104,11 @@ private fun compile(string: String): Assembly {
     val preprocessed = time("preprocess") { dev.mee42.xpp.preprocess(string) }
 
     val tokens = time("lex") { dev.mee42.lexer.lex(preprocessed) }
-//    println("-- tokens --")
-//    tokens.map(Token::content).map { "$it "}.forEach(::print)
-//    println("\n")
+    if(Config.isPicked(PRINT_LEXED)) {
+        println("-- tokens --")
+        tokens.map(Token::content).map { "$it "}.forEach(::print)
+        println("\n")
+    }
 
     val initialAST = time("pass1") {
         parsePass1(tokens)
@@ -130,9 +116,17 @@ private fun compile(string: String): Assembly {
     }
 
     val ast = time("pass2") { parsePass2(initialAST) }
-
-    val optimized = time("optimize") { dev.mee42.opt.optimize(ast) }
-
+    if(Config.isPicked(PRINT_AST)) {
+        println("--  ast  --\n")
+        printAST(ast)
+        println()
+    }
+    val optimized = time("optimize") { if(Config.optimize) optimize(ast) else ast }
+    if(Config.isPicked(PRINT_AST)) {
+        println("--  optimized  --\n")
+        printAST(optimized)
+        println()
+    }
     val asm = time("assemble") { assemble(optimized) }
 
     return time("optimized2 ") { optimize(asm) }

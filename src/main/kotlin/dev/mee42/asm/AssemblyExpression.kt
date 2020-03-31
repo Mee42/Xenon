@@ -166,7 +166,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
             SizedRegister(expression.var1.type.size, accumulatorRegister),
             SizedRegister(expression.var2.type.size, Register.B).advanced()
         )
-        this += AssemblyInstruction.SetCC(ComparisonOperator.EQUALS, accumulatorRegister)
+        this += AssemblyInstruction.SetCC(if(expression.negate) ComparisonOperator.NOT_EQUALS else ComparisonOperator.EQUALS, accumulatorRegister)
     }
     private fun assembleExpression(expression: StringLiteralExpression): Assembly = buildAssembly {
         val (label, dataEntry) = StringInterner.labelString(expression.value)

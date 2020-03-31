@@ -28,7 +28,7 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     // this is a block, it has both the open and close brackets as tokens
     val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = true) }
     val block = parseBlock(ConsumableQueue(it.content), initialAST, arguments)
-    return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id)
+    return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes)
 }
 /** this assumes that tokens starts with a { and ends the block with a } */
 private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
@@ -64,8 +64,8 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
                 if(math != null) {
                      checkForOperator(MathExpression(expression, parseExpression(tokens, initialAST, localVariables), math))
                 } else {
-                    if(next.content == "=="){
-                        EqualsExpression(expression, parseExpression(tokens, initialAST, localVariables))
+                    if(next.content == "==" || next.content == "!="){
+                        EqualsExpression(expression, parseExpression(tokens, initialAST, localVariables), next.content == "!=")
                     } else TODO("can't handle any other operators")
                 }
             }
@@ -82,8 +82,8 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
         INTEGER -> {
             val str = first.content
             // int32 is the only option as of rn
-            str.toIntOrNull()?.let { IntegerValueExpression(it, BaseType(TypeEnum.INT32)) }
-                ?: throw ParseException("can't support that type of integer", first)
+            checkForOperator(str.toIntOrNull()?.let { IntegerValueExpression(it, BaseType(TypeEnum.INT32)) }
+                ?: throw ParseException("can't support that type of integer", first))
         }
         OPEN_PARENTHESES -> {
             val enclosed = parseExpression(tokens, initialAST, localVariables)
@@ -164,7 +164,7 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
             // parse an if statement
             val conditional = parseExpression(tokens, initialAST, localVariables)
             val block = parseBlock(tokens, initialAST, localVariables)
-            IfStatement(conditional, block)
+            IfStatement.create(conditional, block)
         }
         ASTERISK -> {
             // it's a deref
@@ -258,8 +258,6 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
                 tokens.shove(firstToken)
                 ExpressionStatement(parseExpression(tokens, initialAST, localVariables))
             }
-            // it's an expression! can we like, shove the token back into the stream and parse it as an expression?
-            // yes
         }
         else -> throw ParseException("can't support statements that start with ${firstToken.content}", firstToken)
     }
