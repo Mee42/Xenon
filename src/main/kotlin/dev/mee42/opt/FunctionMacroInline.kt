@@ -1,6 +1,7 @@
 package dev.mee42.opt
 
 import dev.mee42.parser.*
+import kotlin.coroutines.coroutineContext
 import kotlin.math.exp
 
 fun inlineMacros(ast: AST): AST {
@@ -13,8 +14,8 @@ private fun inlineMacros(function: XenonFunction, ast: AST): XenonFunction {
             content = inlineMacros(function.content, ast),
             returnType = function.returnType,
             arguments = function.arguments,
-            id = function.id
-    )
+            id = function.id,
+            attributes = function.attributes)
 }
 
 private fun inlineMacros(block: Block, ast: AST): Block {
@@ -52,7 +53,7 @@ private fun inlineMacros(statement: Statement, ast: AST): Statement {
 }
 
 fun inlineMacros(expression: Expression, ast: AST): Expression {
-    val x = when(expression) {
+    return when(expression) {
         is VariableAccessExpression, is IntegerValueExpression, is StringLiteralExpression -> expression
         is DereferencePointerExpression -> DereferencePointerExpression(inlineMacros(expression.pointerExpression, ast))
         is MathExpression -> MathExpression(
@@ -70,8 +71,11 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
             if(function is XenonFunction) {
                 val arguments = expression.arguments.map { inlineMacros(it, ast) }
                 if(function.attributes.contains("@inline")) {
+
                     inlineInto(function, arguments)
                 } else {
+                    println("inlining fgunction")
+
                     FunctionCallExpression(
                             arguments = arguments,
                             returnType = expression.returnType,
@@ -80,6 +84,10 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
                 }
             } else expression
         }
+        is BlockExpression -> BlockExpression(
+                statements = expression.statements.map { inlineMacros(it, ast) },
+                last = inlineMacros(expression.last, ast)
+        )
     }
 }
 
@@ -89,10 +97,11 @@ private fun markVariableName(name: String, functionIdentifier: String): String {
 
 private fun inlineInto(func: XenonFunction, arguments: List<Expression>): BlockExpression {
     // generate variable bindings...
-    val variableBindings = arguments.mapIndexed { i, expression ->
-        func.arguments[i].name to expression
-    }.toMap()
     val functionIdentifier = func.identifier
+
+    val variableBindings = arguments.mapIndexed { i, expression ->
+        markVariableName(func.arguments[i].name,functionIdentifier) to expression
+    }.toMap()
 
     val statements = func.content.statements.dropLast(1)
     val last = func.content.statements.last()
@@ -102,27 +111,67 @@ private fun inlineInto(func: XenonFunction, arguments: List<Expression>): BlockE
         error("inline function ${func.name} can not be inlined because it has a return somewhere other then the last line")
     // there's zero type checking, so screw... everything
     // two step process - first, rename everything
-    val renamed = statements.map {
-
+    val niceBlock = BlockExpression(statements, last.expression)
+    val renamed = replaceVariableDefinitions(niceBlock) {
+        VariableAccessExpression(markVariableName(it.variableName, functionIdentifier), it.type)
     }
+    val inlined = replaceVariableDefinitions(renamed) {
+        variableBindings[it.variableName] ?: it
+    }
+    return inlined as BlockExpression
 }
-private fun rename(mappings: Map<String,String>, statement: Statement): Statement {
+
+fun <B: Expression> replaceVariableDefinitions(statement: Statement, mapper: (VariableAccessExpression) -> B): Statement {
     return when(statement){
-        is Block -> Block(statement.statements.map { rename(mappings, it) })
-        is ReturnStatement -> ReturnStatement(rename(mappings, statement.expression))
+        is Block -> Block(statement.statements.map { replaceVariableDefinitions(it, mapper) })
+        is ReturnStatement -> ReturnStatement(replaceVariableDefinitions(statement.expression, mapper))
         NoOpStatement -> NoOpStatement
-        is ExpressionStatement -> ExpressionStatement(rename(mappings, statement.expression))
-        is DeclareVariableStatement -> DeclareVariableStatement(statement.variableName, statement.final , rename(mappings, statement.expression))
-        is AssignVariableStatement -> AssignVariableStatement(statement.variableName, rename(mappings, statement.expression))
+        is ExpressionStatement -> ExpressionStatement(replaceVariableDefinitions(statement.expression, mapper))
+        is DeclareVariableStatement -> DeclareVariableStatement(statement.variableName, statement.final , replaceVariableDefinitions(statement.expression, mapper))
+        is AssignVariableStatement -> AssignVariableStatement(statement.variableName, replaceVariableDefinitions(statement.expression, mapper))
         is MemoryWriteStatement -> MemoryWriteStatement(
-                // TODO stopped herec
+                location = replaceVariableDefinitions(statement.location, mapper),
+                value = replaceVariableDefinitions(statement.location, mapper)
         )
-        is IfStatement -> TODO()
-        is WhileStatement -> TODO()
+        is IfStatement -> IfStatement(
+                conditional = replaceVariableDefinitions(statement.conditional, mapper),
+                block = replaceVariableDefinitions(statement.block, mapper) as Block
+        )
+        is WhileStatement -> WhileStatement(
+                conditional = replaceVariableDefinitions(statement.conditional, mapper),
+                block = replaceVariableDefinitions(statement.block, mapper) as Block
+        )
     }
 }
-private fun rename(mappings: Map<String, String>, expression: Expression): Expression {
-
+fun <B: Expression> replaceVariableDefinitions(expression: Expression, mapper: (VariableAccessExpression) -> B): Expression {
+    return when(expression) {
+        is VariableAccessExpression -> mapper(expression)
+        is BlockExpression -> BlockExpression(
+                statements = expression.statements.map { replaceVariableDefinitions(it,mapper) },
+                last = replaceVariableDefinitions(expression.last,mapper)
+        )
+        is DereferencePointerExpression -> DereferencePointerExpression(
+                pointerExpression = replaceVariableDefinitions(expression.pointerExpression,mapper)
+        )
+        is IntegerValueExpression -> expression
+        is StringLiteralExpression -> expression
+        is MathExpression -> MathExpression(
+                var1 = replaceVariableDefinitions(expression.var1,mapper),
+                var2 = replaceVariableDefinitions(expression.var2,mapper),
+                mathType = expression.mathType
+        )
+        is EqualsExpression -> EqualsExpression(
+                var1 = replaceVariableDefinitions(expression.var1,mapper),
+                var2 = replaceVariableDefinitions(expression.var2,mapper),
+                negate = expression.negate
+        )
+        is FunctionCallExpression -> FunctionCallExpression(
+                arguments = expression.arguments.map { replaceVariableDefinitions(it,mapper) },
+                argumentNames = expression.argumentNames,
+                functionIdentifier = expression.functionIdentifier,
+                returnType = expression.returnType
+        )
+    }
 }
 
 

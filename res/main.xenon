@@ -2,7 +2,7 @@
 
  // we could say, for now, that inline functions must have a single return statement as the last statement
 
-int foo(int a, int b) {
+@inline int foo(int a, int b) {
     mut int test = 4
     if a == b { test = 7 } 
     if a != b { test = 8 }

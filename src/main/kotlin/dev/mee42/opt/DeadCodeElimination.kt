@@ -10,6 +10,7 @@ fun variablesUsed(expression: Expression): List<String> = when(expression) {
     is MathExpression -> (variablesUsed(expression.var1) + variablesUsed(expression.var2)).distinct()
     is EqualsExpression -> (variablesUsed(expression.var1) + variablesUsed(expression.var2)).distinct()
     is FunctionCallExpression -> expression.arguments.flatMap(::variablesUsed).distinct()
+    is BlockExpression -> (expression.statements.flatMap { variablesUsed(it) } + variablesUsed(expression.last)).distinct()
 }
 
 fun variablesUsed(statement: Statement): List<String> = when(statement) {
@@ -32,7 +33,8 @@ fun eliminateDeadCode(function: XenonFunction): XenonFunction {
             id = function.id,
             arguments = function.arguments,
             returnType = function.returnType,
-            content = Block(optimizeBlock(function.content.statements))
+            content = Block(optimizeBlock(function.content.statements)),
+            attributes = function.attributes
     )
 }
 

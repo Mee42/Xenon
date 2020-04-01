@@ -61,7 +61,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
 }
 
 
-private fun assembleBlock(variableBindings: List<Variable>,
+fun assembleBlock(variableBindings: List<Variable>,
                           ast: AST, accumulatorRegister: Register,
                           block: Block,
                           topLocal: Int,
@@ -72,11 +72,11 @@ private fun assembleBlock(variableBindings: List<Variable>,
         when (statement) {
             is ReturnStatement -> {
                 val expression = statement.expression
-                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, topLocal, returnInstructions)
                 this += returnInstructions
             }
             is ExpressionStatement -> {
-                this += assembleExpression(variableBindings + localVariables, ast, statement.expression, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.expression, accumulatorRegister, localVariableLocation, returnInstructions)
             }
             is Block -> {
                 this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement, localVariableLocation, returnInstructions)
@@ -88,7 +88,7 @@ private fun assembleBlock(variableBindings: List<Variable>,
                 val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size, localVariableLocation)
                 localVariableLocation -= 8
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
-                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, topLocal, returnInstructions)
                 localVariables.add(Variable(
                     name = statement.variableName,
                     register = variableRegister,
@@ -103,7 +103,7 @@ private fun assembleBlock(variableBindings: List<Variable>,
                 //    block
                 // end:
 
-                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister, topLocal, returnInstructions)
                 this += AssemblyInstruction.Compare(
                     SizedRegister(RegisterSize.BIT8, accumulatorRegister),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)
@@ -118,7 +118,7 @@ private fun assembleBlock(variableBindings: List<Variable>,
                 val lstart = AssemblyInstruction.Label.next()
                 val lend = AssemblyInstruction.Label.next()
                 this += lstart
-                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister, topLocal, returnInstructions)
                 this += AssemblyInstruction.Compare(
                     SizedRegister(RegisterSize.BIT8, accumulatorRegister),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)
@@ -130,7 +130,7 @@ private fun assembleBlock(variableBindings: List<Variable>,
             }
             is AssignVariableStatement -> {
                 val expression = statement.expression
-                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
                 val variableRegister = (variableBindings + localVariables).first { it.name == statement.variableName }.register
                 this += AssemblyInstruction.Mov(
                     reg1 = variableRegister,
@@ -138,9 +138,9 @@ private fun assembleBlock(variableBindings: List<Variable>,
                 ).zeroIfNeeded()
             }
             is MemoryWriteStatement ->  {
-                this += assembleExpression(variableBindings + localVariables, ast, statement.location, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.location, accumulatorRegister, localVariableLocation, returnInstructions)
                 this += AssemblyInstruction.Push(accumulatorRegister)
-                this += assembleExpression(variableBindings + localVariables, ast, statement.value, accumulatorRegister)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.value, accumulatorRegister, localVariableLocation, returnInstructions)
                 this += AssemblyInstruction.Pop(Register.B)
                 this += AssemblyInstruction.Mov(
                         reg1 = AdvancedRegister(

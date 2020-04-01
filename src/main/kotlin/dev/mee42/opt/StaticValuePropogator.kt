@@ -88,6 +88,7 @@ private fun Expression.predict(state: State): Value? {
             } else null
         }
         is FunctionCallExpression -> null
+        is BlockExpression -> null // TODO can be improved
     }
     return ret
 }
@@ -113,7 +114,8 @@ fun staticValuePropagator(function: XenonFunction): XenonFunction {
             content = optimize(function.content, state) as Block,
             returnType = function.returnType,
             arguments = function.arguments,
-            id = function.id)
+            id = function.id,
+            attributes = function.attributes)
 }
 
 private fun Statement.wrapInBlock(): Block = when(this){

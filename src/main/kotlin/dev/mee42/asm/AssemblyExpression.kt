@@ -34,12 +34,16 @@ class AssemblyBuilder {
     fun build(): Assembly = Assembly(asm, data)
 }
 
-private class ExpressionExistsState(val variableBindings: List<Variable>, val ast: AST, val accumulatorRegister: Register) {
+private class ExpressionExistsState(val variableBindings: List<Variable>,
+                                    val ast: AST,
+                                    val accumulatorRegister: Register,
+                                    val topLocal: Int,
+                                    val returnInstructions: List<AssemblyInstruction>) {
 
     private fun assembleExpression(expression: MathExpression): Assembly = buildAssembly {
-        this += assembleExpression(variableBindings, ast, expression.var1, accumulatorRegister)
+        this += assembleExpression(expression.var1)
         this += AssemblyInstruction.Push(accumulatorRegister)
-        this += assembleExpression(variableBindings, ast, expression.var2, accumulatorRegister)
+        this += assembleExpression(expression.var2)
         when(expression.mathType) {
             MathType.ADD -> {
                 this += AssemblyInstruction.Pop(Register.B)
@@ -120,7 +124,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
 
     private fun assembleExpression(expression: DereferencePointerExpression): Assembly = buildAssembly {
         if(expression.pointerExpression.type !is PointerType) error("assertion failed")
-        this += assembleExpression(variableBindings, ast, expression.pointerExpression, accumulatorRegister)
+        this += assembleExpression(expression.pointerExpression)
         this += AssemblyInstruction.Mov(
             reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
             reg2 = AdvancedRegister(
@@ -136,7 +140,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
 
         expression.arguments.forEachIndexed { i,expr ->
             // evaluate and put the value in the register
-            this += assembleExpression(variableBindings, ast, expr, accumulatorRegister)
+            this += assembleExpression(expr)
             this += AssemblyInstruction.Push(accumulatorRegister).comment("argument ${expression.argumentNames[i]}")
         }
         // alright, everything is in the right registers
@@ -176,6 +180,10 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
         this += AssemblyInstruction.MovToLabel(accumulatorRegister, label)
     }
 
+    private fun assembleBlockExpression(expression: BlockExpression): Assembly = buildAssembly {
+        this += assembleBlock(variableBindings, ast, accumulatorRegister, Block(expression.statements + ExpressionStatement(expression.last)), topLocal, returnInstructions)
+    }
+
     fun assembleExpression(expression: Expression): Assembly {
         return when(expression) {
             is MathExpression -> assembleExpression(expression)
@@ -185,6 +193,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>, val as
             is IntegerValueExpression -> assembleExpression(expression)
             is EqualsExpression -> assembleExpression(expression)
             is StringLiteralExpression -> assembleExpression(expression)
+            is BlockExpression -> assembleBlockExpression(expression)
         }
     }
 
@@ -212,6 +221,11 @@ object StringInterner {
     }
 }
 
-fun assembleExpression(variableBindings: List<Variable>, ast: AST, expression: Expression, accumulatorRegister: Register): Assembly {
-    return ExpressionExistsState(variableBindings, ast, accumulatorRegister).assembleExpression(expression)
+fun assembleExpression(variableBindings: List<Variable>,
+                       ast: AST,
+                       expression: Expression,
+                       accumulatorRegister: Register,
+                       topLocal: Int,
+                       returnInstructions: List<AssemblyInstruction>): Assembly {
+    return ExpressionExistsState(variableBindings, ast, accumulatorRegister, topLocal, returnInstructions).assembleExpression(expression)
 }
