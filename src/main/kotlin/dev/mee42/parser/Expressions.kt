@@ -1,6 +1,5 @@
 package dev.mee42.parser
 
-import dev.mee42.asm.RegisterSize
 import dev.mee42.type
 
 
@@ -10,7 +9,8 @@ class VariableAccessExpression(val variableName: String, type: Type): Expression
         return "VARIABLE($variableName)"
     }
 }
-class BlockExpression(val statements: List<Statement>,val  last: Expression): Expression(last.type)
+class BlockExpression(val statements: List<Statement>): Expression((statements.last() as ExpressionStatement).expression.type)
+
 class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
 class IntegerValueExpression(val value: Int, override val type: BaseType) :Expression(type) {
     override fun toString(): String {

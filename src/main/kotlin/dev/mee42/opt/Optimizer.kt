@@ -7,20 +7,19 @@ fun emitWarning(str: String) {
     System.err.println("WARNING: $str")
 }
 
-fun optimize(ast: AST): AST {
-    val ast2 = AST(ast.functions.map {
-        if(it is XenonFunction) optimizeFunction(it) else it
+private fun AST.forAllXenonFunctions(mapper: (XenonFunction) -> XenonFunction): AST {
+    return AST(functions.map {
+        if(it is XenonFunction) mapper(it) else it
     })
-    return inlineMacros(ast2)
-//    return AST(ast3.functions.map {
-//        if (it is XenonFunction) optimizeFunction(it) else it
-//    })
 }
 
-private fun optimizeFunction(func: XenonFunction): XenonFunction {
-    val apply = listOf<(XenonFunction) -> XenonFunction>(
-            ::staticValuePropagator,
-            ::eliminateDeadCode
-    )
-    return apply.fold(func) { a, applicator -> applicator(a) }
+fun optimize(ast: AST): AST {
+    val map = ::eliminateDeadCode
+            .ap(::inlineMacros)
+            .ap { it.forAllXenonFunctions(::staticValuePropagator) }
+    return map(map(ast))
+}
+
+private fun <A,B,C> ((A) -> B).ap(m: ((B) -> C)): (A) -> C {
+    return { a: A -> m(this(a)) }
 }

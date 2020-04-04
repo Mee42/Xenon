@@ -48,51 +48,6 @@ private class State private constructor(val parent: State?){
     }
 }
 
-private fun Expression.predict(state: State): Value? {
-    val ret =  when (this) {
-        is IntegerValueExpression -> {
-            if(this.type == type("bool")) {
-                Value(type("bool"), this.value != 0)
-            } else Value(this.type, this.value)
-        }
-        is VariableAccessExpression -> state.getVariable(this.variableName).knownValue
-        is DereferencePointerExpression -> null
-        is StringLiteralExpression -> null // not sure how to handle this
-        is MathExpression -> {
-            val v1 = this.var1.predict(state)
-            val v2 = this.var2.predict(state)
-            if(v1 != null && v2 != null) {
-                if(v1.type != type("int") || v2.type != type("int")) null // TODO allow for other operations
-                else when(this.mathType) {
-                    MathType.ADD -> Value(type("int"), v1.value as Int + v2.value as Int)
-                    MathType.SUB -> Value(type("int"), v1.value as Int - v2.value as Int)
-                    MathType.MULT -> Value(type("int"), v1.value as Int * v2.value as Int)
-                    MathType.DIV -> {
-                        if(v2.value as Int == 0) {
-                            emitWarning("division by zero")
-                            null
-                        } else Value(type("int"), v1.value as Int / v2.value as Int)
-                    }
-                }
-            } else null
-        }
-        is EqualsExpression -> {
-            val v1 = this.var1.predict(state)
-            val v2 = this.var2.predict(state)
-            if(v1 != null && v2 != null) {
-                when (v1.type) {
-                    type("bool") -> Value(type("bool"), applyIf(negate, Boolean::not)(v1.value as Boolean == v2.value as Boolean))
-                    type("int") -> Value(type("bool"),  applyIf(negate, Boolean::not)(v1.value as Int     == v2.value as Int))
-                    else -> null
-                } // TODO add more integer types
-            } else null
-        }
-        is FunctionCallExpression -> null
-        is BlockExpression -> null // TODO can be improved
-    }
-    return ret
-}
-
 fun <T> id(t: T):T {
     return t
 }
@@ -111,80 +66,140 @@ fun staticValuePropagator(function: XenonFunction): XenonFunction {
     }
     return XenonFunction(
             name = function.name,
-            content = optimize(function.content, state) as Block,
+            content = function.content.optimize(state) as Block,
             returnType = function.returnType,
             arguments = function.arguments,
             id = function.id,
             attributes = function.attributes)
 }
 
-private fun Statement.wrapInBlock(): Block = when(this){
-    is Block -> this
-    else -> Block(listOf(this))
-}
-
-private fun optimize(expression: Expression, state: State): Expression {
-    val value =  expression.predict(state)
-    return if(value != null) {
-        if(value.type == type("bool")) {
-            IntegerValueExpression(if(value.value as Boolean) 1 else 0, BaseType(TypeEnum.BOOLEAN))
-        } else {
-            IntegerValueExpression(value.value as Int, value.type as BaseType)
-        }
-    } else expression
-}
-
-private fun optimize(statement: Statement, state: State): Statement {
-    return when(statement){
+private fun Statement.optimize(state: State): Statement {
+    return when(this){
         is Block -> {
             val subState = state.newSubState()
-            val new = statement.statements.map { optimize(it, subState) }
+            val new = statements.map { it.optimize(subState) }
             Block(new)
         }
         is ReturnStatement -> {
-            ReturnStatement(optimize(statement.expression, state))
+            ReturnStatement(expression.optimize(state))
         }
         NoOpStatement -> NoOpStatement
-        is ExpressionStatement -> ExpressionStatement(optimize(statement.expression, state))
+        is ExpressionStatement -> ExpressionStatement(expression.optimize(state))
         is DeclareVariableStatement -> {
-            val expr = optimize(statement.expression, state)
+            val expr = expression.optimize(state)
             state.insertVariable(State.VariableState(
-                    name = statement.variableName,
-                    type = statement.expression.type,
-                    knownValue = expr.predict(state)))
-            DeclareVariableStatement(
-                    statement.variableName,
-                    statement.final,
-                    expr)
+                    name = variableName,
+                    type = expression.type,
+                    knownValue = expr.isFlat()))
+            DeclareVariableStatement(variableName, final, expr)
         }
         is AssignVariableStatement -> {
-            val expr = optimize(statement.expression, state)
-            expr.predict(state)?.let {v ->
-                state.possiblyUpdate(statement.variableName, v)
-
+            val expr = expression.optimize(state)
+            expr.isFlat()?.let { v ->
+                state.possiblyUpdate(variableName, v)
             }
-            AssignVariableStatement(statement.variableName, statement.expression)
+            AssignVariableStatement(variableName, expr)
         }
         is MemoryWriteStatement -> {
             MemoryWriteStatement(
-                    optimize(statement.location, state),
-                    optimize(statement.value, state)
+                    location.optimize(state),
+                    value.optimize(state)
             )
         }
         is IfStatement -> {
-            val conditional = optimize(statement.conditional, state)
-            val predict = conditional.predict(state)
+            val conditional = conditional.optimize(state)
+            val predict = conditional.isFlat()
+
             if(predict == null){
-                val subState = state.newSubState()
-                IfStatement(conditional, optimize(statement.block, subState) as Block)
+                IfStatement(conditional, block.optimize(state.newSubState()) as Block)
             } else {
                 if(predict.value as Boolean) {
-                    statement.block
+                    block.optimize(state.newSubState())
                 } else {
-                    NoOpStatement
+                    NoOpStatement // don't optimize code that won't be ran, as it'll pollute the namespace
                 }
             }
         }
-        is WhileStatement -> statement
+        is WhileStatement -> this // improvable?
+    }
+}
+
+private fun Expression.isFlat(): Value? {
+    return if(this is IntegerValueExpression) {
+        if(type == type("bool")) {
+            Value(type("bool"),value != 0)
+        } else {
+            Value(type("int"), value)
+        }
+    } else null
+}
+private fun Value.toExpr(): Expression {
+    return if(this.type == type("bool")) {
+        IntegerValueExpression(if(this.value as Boolean) 1 else 0, BaseType(TypeEnum.BOOLEAN))
+    } else {
+        IntegerValueExpression(this.value as Int, BaseType(TypeEnum.INT32))
+    }
+}
+private fun Expression.optimize(state: State): Expression {
+    return when (this) {
+        is IntegerValueExpression -> this
+        is VariableAccessExpression -> state.getVariable(variableName).knownValue?.toExpr() ?: this
+        is DereferencePointerExpression -> DereferencePointerExpression(pointerExpression.optimize(state))
+        is StringLiteralExpression -> this
+        is MathExpression -> {
+            val v1 = var1.optimize(state)
+            val v2 = var2.optimize(state)
+            val f1 = v1.isFlat()
+            val f2 = v1.isFlat()
+            if(f1 != null && f2 != null) {
+                if(v1.type != type("int") || v2.type != type("int")) this // TODO allow for other operations
+                else when(mathType) {
+                    MathType.ADD -> Value(type("int"), f1.value as Int + f2.value as Int).toExpr()
+                    MathType.SUB -> Value(type("int"), f1.value as Int - f2.value as Int).toExpr()
+                    MathType.MULT -> Value(type("int"), f1.value as Int * f2.value as Int).toExpr()
+                    MathType.DIV -> {
+                        if(f2.value as Int == 0) {
+                            emitWarning("division by zero")
+                            this
+                        } else Value(type("int"), f1.value as Int / f2.value).toExpr()
+                    }
+                }
+            } else MathExpression(
+                    var1 = v1,
+                    var2 = v2,
+                    mathType = mathType
+            )
+        }
+        is EqualsExpression -> {
+            val v1 = var1.optimize(state)
+            val v2 = var2.optimize(state)
+            val f1 = v1.isFlat()
+            val f2 = v2.isFlat()
+            if(f1 != null && f2 != null) {
+                when (v1.type) {
+                    type("bool") -> Value(type("bool"), applyIf(negate, Boolean::not)(f1.value as Boolean == f2.value as Boolean))
+                    type("int") -> Value(type("bool"),  applyIf(negate, Boolean::not)(f1.value as Int     == f2.value as Int))
+                    else -> error("oof")
+                }.toExpr() // TODO add more integer types
+            } else {
+                EqualsExpression(var1 = v1, var2 = v2, negate = negate)
+            }
+        }
+        is FunctionCallExpression -> {
+            FunctionCallExpression(
+                    arguments = arguments.map { it.optimize(state) },
+                    returnType = returnType,
+                    functionIdentifier = functionIdentifier,
+                    argumentNames = argumentNames
+            )
+        }
+        is BlockExpression -> {
+            val statementsWithoutNop = statements.filter { it != NoOpStatement }
+            if(statementsWithoutNop.size == 1) {
+                (statementsWithoutNop[0] as ExpressionStatement).expression.optimize(state)
+            } else {
+                BlockExpression(statementsWithoutNop)
+            }
+        }
     }
 }

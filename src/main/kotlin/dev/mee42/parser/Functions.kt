@@ -4,13 +4,15 @@ import dev.mee42.lexer.Token
 
 data class Argument(val name: String, val type: Type)
 
-class AssemblyFunction(name: String, arguments: List<Argument>, returnType: Type, id: String): Function(name, arguments, returnType, id)
-class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, id: String, val content: Block, val attributes: List<String>): Function(name, arguments, returnType, id) {
+class AssemblyFunction(name: String, arguments: List<Argument>, returnType: Type, id: String, attributes: List<String>):
+        Function(name, arguments, returnType, id, attributes)
+class XenonFunction(name: String, arguments: List<Argument>, returnType: Type, id: String, val content: Block, attributes: List<String>):
+        Function(name, arguments, returnType, id, attributes) {
     override fun toString(): String {
         return "Function-$name$id($arguments)$returnType{$content}"
     }
 }
-abstract class Function(val name: String, val arguments: List<Argument>, val returnType: Type, val id: String) {
+abstract class Function(val name: String, val arguments: List<Argument>, val returnType: Type, val id: String, val attributes: List<String>) {
     val identifier: String = name + id
 }
 

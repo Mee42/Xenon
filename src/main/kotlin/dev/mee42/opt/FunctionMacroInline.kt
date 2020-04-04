@@ -1,8 +1,6 @@
 package dev.mee42.opt
 
 import dev.mee42.parser.*
-import kotlin.coroutines.coroutineContext
-import kotlin.math.exp
 
 fun inlineMacros(ast: AST): AST {
     return AST(ast.functions.map { if(it is XenonFunction) inlineMacros(it,ast) else it })
@@ -70,12 +68,9 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
             val function = ast.functions.first { it.identifier == expression.functionIdentifier }
             if(function is XenonFunction) {
                 val arguments = expression.arguments.map { inlineMacros(it, ast) }
-                if(function.attributes.contains("@inline")) {
-
-                    inlineInto(function, arguments)
+                if(function.attributes.contains("@macro") || function.attributes.contains("@inline")) {
+                    inlineInto(function, arguments, function.attributes.contains("@inline"))
                 } else {
-                    println("inlining fgunction")
-
                     FunctionCallExpression(
                             arguments = arguments,
                             returnType = expression.returnType,
@@ -85,92 +80,132 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
             } else expression
         }
         is BlockExpression -> BlockExpression(
-                statements = expression.statements.map { inlineMacros(it, ast) },
-                last = inlineMacros(expression.last, ast)
+                statements = expression.statements.map { inlineMacros(it, ast) }
         )
     }
 }
 
 private fun markVariableName(name: String, functionIdentifier: String): String {
+//    if(name.startsWith("_")) error("sanity check")
     return "_${name}_$functionIdentifier"
 }
+private object FunctionLambdaMarkingDelegator {
+    private var i = 0
+    fun getLabel(): String = (++i).toString()
+}
 
-private fun inlineInto(func: XenonFunction, arguments: List<Expression>): BlockExpression {
+private fun inlineInto(func: XenonFunction, arguments: List<Expression>, properInline: Boolean): Expression {
     // generate variable bindings...
-    val functionIdentifier = func.identifier
+    val functionIdentifier = func.identifier + "_" + FunctionLambdaMarkingDelegator.getLabel()
 
     val variableBindings = arguments.mapIndexed { i, expression ->
         markVariableName(func.arguments[i].name,functionIdentifier) to expression
     }.toMap()
-
+    val variablesToSave = if(properInline) {
+        // then save all the variables
+        arguments.mapIndexed { i, it ->
+            DeclareVariableStatement(
+                    variableName = markVariableName(func.arguments[i].name, functionIdentifier), // these need not renaming
+                    expression = it,
+                    final = true
+            )
+        }
+    } else emptyList()
     val statements = func.content.statements.dropLast(1)
     val last = func.content.statements.last()
     if(last !is ReturnStatement)
         error("inline function ${func.name} is not inlineable because it does not end with a return")
     if(statements.flatMap { it.flatten() }.any { it is ReturnStatement})
         error("inline function ${func.name} can not be inlined because it has a return somewhere other then the last line")
+    val allStatements = statements + last
     // there's zero type checking, so screw... everything
     // two step process - first, rename everything
-    val niceBlock = BlockExpression(statements, last.expression)
-    val renamed = replaceVariableDefinitions(niceBlock) {
+    val renamed1 = iterateThroughNodes(allStatements, VariableAccessExpression::class.java) {
         VariableAccessExpression(markVariableName(it.variableName, functionIdentifier), it.type)
     }
-    val inlined = replaceVariableDefinitions(renamed) {
-        variableBindings[it.variableName] ?: it
+    val renamed2 = iterateThroughNodes(renamed1, AssignVariableStatement::class.java) {
+        AssignVariableStatement(markVariableName(it.variableName, functionIdentifier), it.expression)
     }
-    return inlined as BlockExpression
+    val renamed3 = variablesToSave + iterateThroughNodes(renamed2, DeclareVariableStatement::class.java) {
+        DeclareVariableStatement(markVariableName(it.variableName, functionIdentifier), it.final, it.expression)
+    }
+    val end = if(properInline) {
+        renamed3
+    } else {
+        iterateThroughNodes(renamed3, VariableAccessExpression::class.java) {
+            variableBindings[it.variableName] ?: it
+        }
+    }
+    // take the last expression, turn it into a
+    val front = end.dropLast(1).filter { it != NoOpStatement }
+    val back = (end.last() as ReturnStatement).expression
+   // return if(front.isEmpty()) {
+     //   back
+    //} else {
+      return  BlockExpression(front + ExpressionStatement(back))
+    //}
 }
 
-fun <B: Expression> replaceVariableDefinitions(statement: Statement, mapper: (VariableAccessExpression) -> B): Statement {
-    return when(statement){
-        is Block -> Block(statement.statements.map { replaceVariableDefinitions(it, mapper) })
-        is ReturnStatement -> ReturnStatement(replaceVariableDefinitions(statement.expression, mapper))
-        NoOpStatement -> NoOpStatement
-        is ExpressionStatement -> ExpressionStatement(replaceVariableDefinitions(statement.expression, mapper))
-        is DeclareVariableStatement -> DeclareVariableStatement(statement.variableName, statement.final , replaceVariableDefinitions(statement.expression, mapper))
-        is AssignVariableStatement -> AssignVariableStatement(statement.variableName, replaceVariableDefinitions(statement.expression, mapper))
-        is MemoryWriteStatement -> MemoryWriteStatement(
-                location = replaceVariableDefinitions(statement.location, mapper),
-                value = replaceVariableDefinitions(statement.location, mapper)
+fun <M> iterateThroughNodes(statements: List<Statement>, c: Class<M>, mapper: (M) -> Any): List<Statement> {
+    return statements.map { iterateThroughNodes(it, c, mapper) }
+}
+
+fun <M> iterateThroughNodes(statement: Statement, c: Class<M>, mapper: (M) -> Any): Statement {
+    return when {
+        statement.javaClass == c -> mapper(statement as M) as Statement
+        statement is Block -> Block(statement.statements.map { iterateThroughNodes(it,c, mapper) })
+        statement is ReturnStatement -> ReturnStatement(iterateThroughNodes(statement.expression,c, mapper))
+        statement == NoOpStatement -> NoOpStatement
+        statement is ExpressionStatement -> ExpressionStatement(iterateThroughNodes(statement.expression,c, mapper))
+        statement is DeclareVariableStatement -> DeclareVariableStatement(statement.variableName, statement.final , iterateThroughNodes(statement.expression,c, mapper))
+        statement is AssignVariableStatement -> AssignVariableStatement(statement.variableName, iterateThroughNodes(statement.expression,c, mapper))
+        statement is MemoryWriteStatement -> MemoryWriteStatement(
+                location = iterateThroughNodes(statement.location,c, mapper),
+                value = iterateThroughNodes(statement.location,c, mapper)
         )
-        is IfStatement -> IfStatement(
-                conditional = replaceVariableDefinitions(statement.conditional, mapper),
-                block = replaceVariableDefinitions(statement.block, mapper) as Block
+        statement is IfStatement -> IfStatement(
+                conditional = iterateThroughNodes(statement.conditional,c, mapper),
+                block = iterateThroughNodes(statement.block, c,mapper) as Block
         )
-        is WhileStatement -> WhileStatement(
-                conditional = replaceVariableDefinitions(statement.conditional, mapper),
-                block = replaceVariableDefinitions(statement.block, mapper) as Block
+        statement is WhileStatement -> WhileStatement(
+                conditional = iterateThroughNodes(statement.conditional,c, mapper),
+                block = iterateThroughNodes(statement.block,c, mapper) as Block
         )
+        else -> error("ohno")
     }
 }
-fun <B: Expression> replaceVariableDefinitions(expression: Expression, mapper: (VariableAccessExpression) -> B): Expression {
-    return when(expression) {
-        is VariableAccessExpression -> mapper(expression)
-        is BlockExpression -> BlockExpression(
-                statements = expression.statements.map { replaceVariableDefinitions(it,mapper) },
-                last = replaceVariableDefinitions(expression.last,mapper)
+fun <M> iterateThroughNodes(expression: Expression, c: Class<M>, mapper: (M) -> Any): Expression {
+    return when {
+        expression.javaClass == c -> mapper(expression as M) as Expression
+        expression is BlockExpression -> BlockExpression(
+                statements = expression.statements.map { iterateThroughNodes(it,c,mapper) }
         )
-        is DereferencePointerExpression -> DereferencePointerExpression(
-                pointerExpression = replaceVariableDefinitions(expression.pointerExpression,mapper)
+        expression is DereferencePointerExpression -> DereferencePointerExpression(
+                pointerExpression = iterateThroughNodes(expression.pointerExpression, c,mapper)
         )
-        is IntegerValueExpression -> expression
-        is StringLiteralExpression -> expression
-        is MathExpression -> MathExpression(
-                var1 = replaceVariableDefinitions(expression.var1,mapper),
-                var2 = replaceVariableDefinitions(expression.var2,mapper),
+        expression is IntegerValueExpression -> expression
+        expression is StringLiteralExpression -> expression
+        expression is MathExpression -> MathExpression(
+                var1 = iterateThroughNodes(expression.var1,c, mapper),
+                var2 = iterateThroughNodes(expression.var2,c, mapper),
                 mathType = expression.mathType
         )
-        is EqualsExpression -> EqualsExpression(
-                var1 = replaceVariableDefinitions(expression.var1,mapper),
-                var2 = replaceVariableDefinitions(expression.var2,mapper),
+        expression is EqualsExpression -> EqualsExpression(
+                var1 = iterateThroughNodes(expression.var1, c, mapper),
+                var2 = iterateThroughNodes(expression.var2, c, mapper),
                 negate = expression.negate
         )
-        is FunctionCallExpression -> FunctionCallExpression(
-                arguments = expression.arguments.map { replaceVariableDefinitions(it,mapper) },
+        expression is FunctionCallExpression -> FunctionCallExpression(
+                arguments = expression.arguments.map { iterateThroughNodes(it, c, mapper) },
                 argumentNames = expression.argumentNames,
                 functionIdentifier = expression.functionIdentifier,
                 returnType = expression.returnType
         )
+        expression is VariableAccessExpression -> VariableAccessExpression(
+                variableName = expression.variableName,
+                type = expression.type
+        )
+        else -> error("ohno")
     }
 }
 
@@ -179,11 +214,11 @@ private fun Statement.flatten(): List<Statement> {
     return when(this){
         is Block -> this.statements.flatMap { it.flatten() }
         is ReturnStatement,
-        NoOpStatement,
         is ExpressionStatement,
         is DeclareVariableStatement,
         is AssignVariableStatement,
         is MemoryWriteStatement -> listOf(this)
+        NoOpStatement -> emptyList()
         is IfStatement -> this.block.flatten()
         is WhileStatement -> this.block.flatten()
     }

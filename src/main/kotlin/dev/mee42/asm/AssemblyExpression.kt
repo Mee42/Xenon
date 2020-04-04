@@ -115,7 +115,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
 
 
     private fun assembleExpression(expression: VariableAccessExpression): Assembly = buildAssembly {
-        val variable = variableBindings.first { it.name == expression.variableName }
+        val variable = variableBindings.firstOrNull { it.name == expression.variableName } ?: error("can't find variable ${expression.variableName}")
         this += AssemblyInstruction.Mov(
             reg1 = SizedRegister(variable.register.size, accumulatorRegister).advanced(),
             reg2 = variable.register
@@ -181,7 +181,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
     }
 
     private fun assembleBlockExpression(expression: BlockExpression): Assembly = buildAssembly {
-        this += assembleBlock(variableBindings, ast, accumulatorRegister, Block(expression.statements + ExpressionStatement(expression.last)), topLocal, returnInstructions)
+        this += assembleBlock(variableBindings, ast, accumulatorRegister, Block(expression.statements), topLocal, returnInstructions)
     }
 
     fun assembleExpression(expression: Expression): Assembly {
@@ -215,9 +215,6 @@ object StringInterner {
             }
             else -> f to null
         }
-    }
-    fun reset(){
-        map.clear()
     }
 }
 

@@ -127,6 +127,11 @@ private fun compile(string: String): Assembly {
         printAST(optimized)
         println()
     }
+    if(Config.isPicked(DECOMPILE_AST)) {
+        optimized.functions.filterIsInstance<XenonFunction>().forEach {
+            println(decompileFunction(it) + "\n")
+        }
+    }
     val asm = time("assemble") { assemble(optimized) }
 
     return time("optimized2 ") { optimize(asm) }

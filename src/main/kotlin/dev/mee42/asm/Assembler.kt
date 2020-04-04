@@ -72,7 +72,7 @@ fun assembleBlock(variableBindings: List<Variable>,
         when (statement) {
             is ReturnStatement -> {
                 val expression = statement.expression
-                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, topLocal, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
                 this += returnInstructions
             }
             is ExpressionStatement -> {
@@ -88,7 +88,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                 val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size, localVariableLocation)
                 localVariableLocation -= 8
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
-                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, topLocal, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
                 localVariables.add(Variable(
                     name = statement.variableName,
                     register = variableRegister,
@@ -103,7 +103,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                 //    block
                 // end:
 
-                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister, topLocal, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister, localVariableLocation, returnInstructions)
                 this += AssemblyInstruction.Compare(
                     SizedRegister(RegisterSize.BIT8, accumulatorRegister),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)
@@ -118,7 +118,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                 val lstart = AssemblyInstruction.Label.next()
                 val lend = AssemblyInstruction.Label.next()
                 this += lstart
-                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister, topLocal, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, accumulatorRegister, localVariableLocation, returnInstructions)
                 this += AssemblyInstruction.Compare(
                     SizedRegister(RegisterSize.BIT8, accumulatorRegister),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)

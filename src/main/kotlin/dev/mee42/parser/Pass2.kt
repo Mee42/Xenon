@@ -19,7 +19,7 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     if(it.content == null) {
         // it's an assembly function
         return AssemblyFunction(
-            name = it.name, returnType = it.returnType, arguments = it.arguments, id = it.id
+            name = it.name, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes
         )
     }
     if(it.content.first().type != OPEN_BRACKET || it.content.last().type != CLOSE_BRACKET) {
