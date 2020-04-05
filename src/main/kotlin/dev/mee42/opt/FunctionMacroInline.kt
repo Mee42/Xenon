@@ -7,13 +7,7 @@ fun inlineMacros(ast: AST): AST {
 }
 
 private fun inlineMacros(function: XenonFunction, ast: AST): XenonFunction {
-    return XenonFunction(
-            name = function.name,
-            content = inlineMacros(function.content, ast),
-            returnType = function.returnType,
-            arguments = function.arguments,
-            id = function.id,
-            attributes = function.attributes)
+    return function.copy(inlineMacros(function.content, ast))
 }
 
 private fun inlineMacros(block: Block, ast: AST): Block {
@@ -82,6 +76,7 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
         is BlockExpression -> BlockExpression(
                 statements = expression.statements.map { inlineMacros(it, ast) }
         )
+        is TypelessBlock -> TypelessBlock(expression.expressions.map { inlineMacros(it,ast) })
     }
 }
 
@@ -115,6 +110,7 @@ private fun inlineInto(func: XenonFunction, arguments: List<Expression>, properI
     val last = func.content.statements.last()
     if(last !is ReturnStatement)
         error("inline function ${func.name} is not inlineable because it does not end with a return")
+
     if(statements.flatMap { it.flatten() }.any { it is ReturnStatement})
         error("inline function ${func.name} can not be inlined because it has a return somewhere other then the last line")
     val allStatements = statements + last
@@ -139,11 +135,7 @@ private fun inlineInto(func: XenonFunction, arguments: List<Expression>, properI
     // take the last expression, turn it into a
     val front = end.dropLast(1).filter { it != NoOpStatement }
     val back = (end.last() as ReturnStatement).expression
-   // return if(front.isEmpty()) {
-     //   back
-    //} else {
-      return  BlockExpression(front + ExpressionStatement(back))
-    //}
+    return  BlockExpression(front + ExpressionStatement(back, needed = true))
 }
 
 fun <M> iterateThroughNodes(statements: List<Statement>, c: Class<M>, mapper: (M) -> Any): List<Statement> {

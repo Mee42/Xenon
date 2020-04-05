@@ -9,6 +9,9 @@ class VariableAccessExpression(val variableName: String, type: Type): Expression
         return "VARIABLE($variableName)"
     }
 }
+
+class TypelessBlock(val expressions: List<Expression>): Expression(BaseType(TypeEnum.VOID))
+
 class BlockExpression(val statements: List<Statement>): Expression((statements.last() as ExpressionStatement).expression.type)
 
 class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)

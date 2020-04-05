@@ -5,7 +5,6 @@ import dev.mee42.InternalCompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.lexer.TokenType.*
-import kotlin.math.exp
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
 

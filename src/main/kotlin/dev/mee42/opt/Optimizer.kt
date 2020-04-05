@@ -16,10 +16,11 @@ private fun AST.forAllXenonFunctions(mapper: (XenonFunction) -> XenonFunction): 
 fun optimize(ast: AST): AST {
     val map = ::eliminateDeadCode
             .ap(::inlineMacros)
-            .ap { it.forAllXenonFunctions(::staticValuePropagator) }
-    return map(map(ast))
+            .ap(::reshuffleExpressions)
+            .ap { it.forAllXenonFunctions(::staticValuePropagator.ap(::flattenTypelessBlocks)) }
+    return map(map(map(map(ast))))
 }
 
-private fun <A,B,C> ((A) -> B).ap(m: ((B) -> C)): (A) -> C {
+private infix fun <A,B,C> ((A) -> B).ap(m: ((B) -> C)): (A) -> C {
     return { a: A -> m(this(a)) }
 }

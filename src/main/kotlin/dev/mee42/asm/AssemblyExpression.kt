@@ -194,6 +194,13 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
             is EqualsExpression -> assembleExpression(expression)
             is StringLiteralExpression -> assembleExpression(expression)
             is BlockExpression -> assembleBlockExpression(expression)
+            is TypelessBlock -> assemblyExpression(expression)
+        }
+    }
+
+    private fun assemblyExpression(expression: TypelessBlock): Assembly = buildAssembly {
+        for(expr in expression.expressions) {
+            this += assembleExpression(expr)
         }
     }
 

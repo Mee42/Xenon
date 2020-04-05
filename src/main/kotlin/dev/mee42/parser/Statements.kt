@@ -18,7 +18,7 @@ object NoOpStatement: Statement() {
 
     override fun toString() = "NOP"
 }
-data class ExpressionStatement(val expression: Expression): Statement() {
+data class ExpressionStatement(val expression: Expression, val needed: Boolean = false): Statement() {
     override val localVariableMaxBytes: Int = 0
 }
 

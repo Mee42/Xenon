@@ -1,19 +1,21 @@
 
-int bar() { return 7; }
 
-@inline int incr(int a) {    
-    return a + 1
-}
-int main() { 
-    int i = incr(bar()) + incr(bar())
-    if bar() == 7 {
-        int b = 10
+int a(int i) {
+    mut int ret = 0
+    if i != 10 {
+        ret = b(i)
     }
+    return ret
+}
+int b(int i) {
+    c(i)
+    return a(i + 1)
+}
+@forcePure int c(int i) {
     println(i)
+    return i
+}
+int main() {
+    b(7)
     return 0
 }
-
-
-
-
-

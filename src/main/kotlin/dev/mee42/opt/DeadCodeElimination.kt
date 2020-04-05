@@ -4,78 +4,15 @@ import dev.mee42.parser.*
 
 
 fun eliminateDeadCode(ast: AST): AST {
-    val inst = DeadCodeElimination(ast)
+    val inst = DeadCodeElimination()
     return AST(ast.functions.map {
         if(it is XenonFunction) {
-            XenonFunction(
-                    name = it.name,
-                    id = it.id,
-                    arguments = it.arguments,
-                    returnType = it.returnType,
-                    content = inst.optimizeBlock(it.content),
-                    attributes = it.attributes
-            )
-        } else it
-    })
-}
-fun reshuffleExpressions(ast: AST): AST {
-    val inst = ReshuffleExpressions(ast)
-    return AST(ast.functions.map {
-        if(it is XenonFunction) {
-            XenonFunction(
-                    name = it.name,
-                    id = it.id,
-                    arguments = it.arguments,
-                    returnType = it.returnType,
-                    content = inst.reshuffle(it.content),
-                    attributes = it.attributes
-            )
+            it.copy(Block(inst.optimizeBlock(it.content.statements)))
         } else it
     })
 }
 
-class ReshuffleExpressions(val ast: AST) {
-    fun Expression.reshuffle(): Expression = when(this) {
-
-    fun Statement.reshuffle(): List<Statement> = when(this) {
-        is Block -> TODO()
-        is ReturnStatement -> TODO()
-        NoOpStatement -> TODO()
-        is ExpressionStatement -> TODO()
-        is DeclareVariableStatement -> TODO()
-        is AssignVariableStatement -> TODO()
-        is MemoryWriteStatement -> TODO()
-        is IfStatement -> TODO()
-        is WhileStatement -> TODO()
-    }
-}
-
-class PurityChecker(private val ast: AST) {
-    fun Statement.isPure(): Boolean = when(this){
-        is Block -> statements.all { it.isPure() }
-        is ReturnStatement -> expression.isPure()
-        NoOpStatement -> true
-        is ExpressionStatement -> expression.isPure()
-        is DeclareVariableStatement -> false
-        is AssignVariableStatement -> false
-        is MemoryWriteStatement -> false
-        is IfStatement -> false
-        is WhileStatement -> false
-    }
-    fun Expression.isPure(): Boolean = when(this) {
-        is VariableAccessExpression -> false
-        is BlockExpression -> statements.all { it.isPure() }
-        is DereferencePointerExpression -> false
-        is IntegerValueExpression -> true
-        is StringLiteralExpression -> false
-        is MathExpression -> var1.isPure() && var2.isPure()
-        is EqualsExpression -> var1.isPure() && var2.isPure()
-        is FunctionCallExpression -> ast.functions.first { it.identifier == functionIdentifier }.attributes.contains("pure")
-                && arguments.all { it.isPure() }
-    }
-}
-
-class DeadCodeElimination(private val ast: AST) {
+class DeadCodeElimination {
     private fun variablesUsed(expression: Expression): List<String> = when(expression) {
         is VariableAccessExpression -> listOf(expression.variableName)
         is DereferencePointerExpression -> variablesUsed(expression.pointerExpression)
@@ -84,7 +21,8 @@ class DeadCodeElimination(private val ast: AST) {
         is MathExpression -> (variablesUsed(expression.var1) + variablesUsed(expression.var2))
         is EqualsExpression -> (variablesUsed(expression.var1) + variablesUsed(expression.var2))
         is FunctionCallExpression -> expression.arguments.flatMap(::variablesUsed)
-        is BlockExpression -> expression.statements.flatMap { variablesUsed(it) }
+        is BlockExpression -> expression.statements.flatMap(::variablesUsed)
+        is TypelessBlock -> expression.expressions.flatMap(::variablesUsed)
     }
 
     private fun variablesUsed(statement: Statement): List<String> = when(statement) {
@@ -106,8 +44,8 @@ class DeadCodeElimination(private val ast: AST) {
             }
             is BlockExpression -> {
                 val optimized = optimizeBlock(statements)
-                if(optimized.size == 1) optimized.first()
-                BlockExpression(optimized)
+                if(optimized.size == 1 && optimized.first() is ExpressionStatement) (optimized.first() as ExpressionStatement).expression
+                else BlockExpression(optimized)
             }
             is DereferencePointerExpression -> DereferencePointerExpression(pointerExpression.optimize())
             is IntegerValueExpression -> this
@@ -115,12 +53,15 @@ class DeadCodeElimination(private val ast: AST) {
             is MathExpression -> MathExpression(var1.optimize(), var2.optimize(), mathType)
             is EqualsExpression -> EqualsExpression(var1.optimize(), var2.optimize(), negate)
             is FunctionCallExpression -> FunctionCallExpression(arguments.map { it.optimize() }, argumentNames, functionIdentifier, returnType)
+            is TypelessBlock -> TypelessBlock(expressions.map { it.optimize() })
         }
     }
-    fun optimizeBlock(b: Block): Block = b.optimize() as Block
     private fun Statement.optimize(): Statement {
         return when(this) {
-            is Block -> Block(optimizeBlock(statements))
+            is Block -> {
+                val s =  optimizeBlock(statements)
+                if(s.isEmpty()) NoOpStatement else Block(s)
+            }
             is ReturnStatement -> ReturnStatement(expression.optimize())
             NoOpStatement -> NoOpStatement
             is ExpressionStatement -> ExpressionStatement(expression.optimize())
@@ -131,7 +72,7 @@ class DeadCodeElimination(private val ast: AST) {
                 val optimizedIf = conditional.optimize()
                 val optimizedBlock = block.optimize() as Block
                 if(optimizedBlock.statements.isEmpty() || optimizedBlock.statements.all {it == NoOpStatement }) {
-                    ExpressionStatement(optimizedIf)
+                    ExpressionStatement(optimizedIf, needed = false)
                 } else IfStatement(optimizedIf, optimizedBlock)
             }
             is WhileStatement -> WhileStatement(conditional.optimize(), block.optimize() as Block)
@@ -141,7 +82,10 @@ class DeadCodeElimination(private val ast: AST) {
         // this expression (should) contain the variable named $name
         // let's pattern match and
         is VariableAccessExpression -> if(this.variableName == name) variable else this
-        is BlockExpression -> this // TODO improve?
+        is BlockExpression -> {
+            println("TODO improve");
+            this
+        } // TODO improve?
         is DereferencePointerExpression -> DereferencePointerExpression(pointerExpression.inlineImpure(variable, name))
         is IntegerValueExpression -> this
         is StringLiteralExpression -> this
@@ -157,16 +101,17 @@ class DeadCodeElimination(private val ast: AST) {
                     argumentNames,functionIdentifier, returnType
             )
         }
+        is TypelessBlock -> TypelessBlock(expressions.map { it.inlineImpure(variable, name) })
     }
 
 
-    private fun optimizeBlock(statements: List<Statement>): List<Statement> {
+    fun optimizeBlock(statements: List<Statement>): List<Statement> {
         if (statements.isEmpty()) return emptyList()
         val first = statements.first()
         val rest = statements.drop(1)
         val real = if (first is DeclareVariableStatement) {
             if (rest.isEmpty() || !rest.flatMap { variablesUsed(it) }.distinct().contains(first.variableName)) {
-                ExpressionStatement(first.expression)
+                ExpressionStatement(first.expression, needed = false)
             } else {
                 first
             }
@@ -187,7 +132,7 @@ class DeadCodeElimination(private val ast: AST) {
                 // how is it used in `second`?
                 if(variablesUsed(second).count { it == first.variableName} == 1) {
                     // inline it, it's only used
-                    val newSecond = forAllExpressions(second) { it.inlineImpure(
+                    val newSecond = second.forAllExpressions { it.inlineImpure(
                             first.expression, first.variableName
                     ) }
                     return listOf(newSecond) + statements.drop(2)

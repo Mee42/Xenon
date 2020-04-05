@@ -131,7 +131,7 @@ fun assembleBlock(variableBindings: List<Variable>,
             is AssignVariableStatement -> {
                 val expression = statement.expression
                 this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
-                val variableRegister = (variableBindings + localVariables).first { it.name == statement.variableName }.register
+                val variableRegister = (variableBindings + localVariables).firstOrNull { it.name == statement.variableName }?.register ?: error("can't find variable ${statement.variableName}")
                 this += AssemblyInstruction.Mov(
                     reg1 = variableRegister,
                     reg2 = SizedRegister(statement.expression.type.size, accumulatorRegister).advanced()

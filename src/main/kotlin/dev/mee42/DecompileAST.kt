@@ -65,5 +65,6 @@ fun decompile(expression: Expression, indent: Indent): String {
                 " (" + decompile(expression.var2, indent) + ")"
         is FunctionCallExpression -> expression.functionIdentifier +
                 expression.arguments.joinToString(", ", "(",")") { decompile(it, indent) }
+        is TypelessBlock -> "t{" + expression.expressions.joinToString(", ", "","") { decompile(it, indent.more()) } + "}"
     }
 }

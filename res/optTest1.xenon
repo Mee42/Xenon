@@ -1,0 +1,30 @@
+
+
+int a(int i) {
+    if i == 10 {
+        return 0;
+    }
+    return b(i)
+}
+int b(int i) {
+    return a(i + 1)
+}
+
+@inline int bar() { return 7; }
+
+@inline int incr(int a) {    
+    return a + 1
+}
+int main() { 
+    int i = incr(bar()) + incr(bar())
+    if bar() == 7 {
+        int b = 10
+    }
+    println(i)
+    return 0
+}
+
+
+
+
+

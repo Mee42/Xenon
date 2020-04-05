@@ -64,13 +64,7 @@ fun staticValuePropagator(function: XenonFunction): XenonFunction {
                 canEverBeKnown = false)
         )
     }
-    return XenonFunction(
-            name = function.name,
-            content = function.content.optimize(state) as Block,
-            returnType = function.returnType,
-            arguments = function.arguments,
-            id = function.id,
-            attributes = function.attributes)
+    return function.copy(function.content.optimize(state) as Block)
 }
 
 private fun Statement.optimize(state: State): Statement {
@@ -97,7 +91,7 @@ private fun Statement.optimize(state: State): Statement {
             val expr = expression.optimize(state)
             expr.isFlat()?.let { v ->
                 state.possiblyUpdate(variableName, v)
-            }
+            } ?: state.markMutated(state.getVariable(variableName))
             AssignVariableStatement(variableName, expr)
         }
         is MemoryWriteStatement -> {
@@ -111,7 +105,8 @@ private fun Statement.optimize(state: State): Statement {
             val predict = conditional.isFlat()
 
             if(predict == null){
-                IfStatement(conditional, block.optimize(state.newSubState()) as Block)
+                val f = IfStatement(conditional, block.optimize(state.newSubState()) as Block)
+                f
             } else {
                 if(predict.value as Boolean) {
                     block.optimize(state.newSubState())
@@ -142,6 +137,7 @@ private fun Value.toExpr(): Expression {
 }
 private fun Expression.optimize(state: State): Expression {
     return when (this) {
+        is TypelessBlock -> TypelessBlock(this.expressions.map { it.optimize(state) })
         is IntegerValueExpression -> this
         is VariableAccessExpression -> state.getVariable(variableName).knownValue?.toExpr() ?: this
         is DereferencePointerExpression -> DereferencePointerExpression(pointerExpression.optimize(state))
@@ -150,7 +146,7 @@ private fun Expression.optimize(state: State): Expression {
             val v1 = var1.optimize(state)
             val v2 = var2.optimize(state)
             val f1 = v1.isFlat()
-            val f2 = v1.isFlat()
+            val f2 = v2.isFlat()
             if(f1 != null && f2 != null) {
                 if(v1.type != type("int") || v2.type != type("int")) this // TODO allow for other operations
                 else when(mathType) {

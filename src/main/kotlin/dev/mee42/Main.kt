@@ -115,7 +115,7 @@ private fun compile(string: String): Assembly {
                 .withOther(InitialAST(stdlib.functions.map { it.toInitialFunction() }, emptyList()))
     }
 
-    val ast = time("pass2") { parsePass2(initialAST) }
+    val ast = time("pass2") { markPurity(parsePass2(initialAST)) }
     if(Config.isPicked(PRINT_AST)) {
         println("--  ast  --\n")
         printAST(ast)
