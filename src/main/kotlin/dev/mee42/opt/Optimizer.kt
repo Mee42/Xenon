@@ -13,12 +13,12 @@ private fun AST.forAllXenonFunctions(mapper: (XenonFunction) -> XenonFunction): 
     })
 }
 
-fun optimize(ast: AST): AST {
+fun optimize(ast: AST, iterations: Int): AST {
     val map = ::eliminateDeadCode
             .ap(::inlineMacros)
             .ap(::reshuffleExpressions)
             .ap { it.forAllXenonFunctions(::staticValuePropagator.ap(::flattenTypelessBlocks)) }
-    return map(map(map(map(ast))))
+    return applyN(iterations, map, ast)
 }
 
 private infix fun <A,B,C> ((A) -> B).ap(m: ((B) -> C)): (A) -> C {

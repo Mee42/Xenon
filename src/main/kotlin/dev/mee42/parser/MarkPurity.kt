@@ -1,25 +1,27 @@
 package dev.mee42.parser
 
 import dev.mee42.CompilerException
+import dev.mee42.Config
 import dev.mee42.parser.FunctionLink.*
-import kotlin.system.exitProcess
+import dev.mee42.printTable
+
 
 fun markPurity(ast: AST): AST {
     val graph = ast.functions.map { it.identifier to it.purity() }.toMap()
-    fun print(graph: Map<String, FunctionLink>){
-        println("  -----  purity  ----  ")
-        for((id, link) in graph){
-            println("$id : $link")
-        }
-        println("  ---- ")
-    }
     val new = optGraph(graph).map { (id,purity) -> ast.functions.first { it.identifier == id } to purity }.toMap()
     for((function, purity) in new) {
         if(function.isMarkedPure() && purity == Impure) {
             throw CompilerException("function ${function.name} was marked pure, but contains impure actions")
         }
     }
-    print(new.map { (a,b) -> a.identifier to b }.toMap())
+    if(Config.isPicked(Config.Flag.PRINT_PURITY)) {
+printTable(
+        col1 = new.map { (a,_) -> a.identifier },
+        title1 = "Function Name",
+        col2 = new.map { (_, b) -> b.toString() },
+        title2 = "Purity"
+)
+    }
     return AST(ast.functions.map {
         if(it is XenonFunction){
             XenonFunction(it.name, it.arguments, it.returnType, it.id, it.content, it.attributes, new[it] == Pure)

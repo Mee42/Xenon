@@ -18,7 +18,7 @@ class InternalCompilerException(message: String): CompilerException(message)
 
 fun main(args: Array<String>) {
     val file = File(args.firstOrNull() ?: error("you need to specify a file"))
-    val (program, compileTime)  = compile(file.readText(), stdlib)
+    val (program, compileTime)  = compile(file.readText(), stdlib, args.first())
     val runtime = run(program).toMillis()
     if(Config.isPicked(PRINT_END_TIMING)) System.err.println("\nCompile Time: ${compileTime.toMillis()}\nTOTAL: $runtime ms")
 }
@@ -39,10 +39,10 @@ private fun <A> time(name: String, block: () -> A): A {
     return a
 }
 
-private fun compile(xenon: String, stdlib: XenonLibrary): Pair<File,Duration> {
+private fun compile(xenon: String, stdlib: XenonLibrary, filename: String): Pair<File,Duration> {
     val id = "main"//randomID()
     if(Config.isPicked(PRINT_ASM_ID))System.err.println("running, id: $id")
-    val (compiled, compileTime) = timeAndGet("compile") { compile(xenon) }
+    val (compiled, compileTime) = timeAndGet("compile") { compile(xenon, filename) }
     val stringContent =  """
 extern printf
 extern malloc
@@ -100,13 +100,13 @@ private fun run(file: File): Duration {
     return time
 }
 
-private fun compile(string: String): Assembly {
-    val preprocessed = time("preprocess") { dev.mee42.xpp.preprocess(string) }
+private fun compile(string: String, filename: String): Assembly {
+    val preprocessed = time("preprocess") { dev.mee42.xpp.preprocess(string, filename) }
 
     val tokens = time("lex") { dev.mee42.lexer.lex(preprocessed) }
     if(Config.isPicked(PRINT_LEXED)) {
         println("-- tokens --")
-        tokens.map(Token::content).map { "$it "}.forEach(::print)
+        tokens.map(Token::content).map { "$it " }.forEach(::print)
         println("\n")
     }
 
@@ -121,7 +121,7 @@ private fun compile(string: String): Assembly {
         printAST(ast)
         println()
     }
-    val optimized = time("optimize") { if(Config.optimize) optimize(ast) else ast }
+    val optimized = time("optimize") { optimize(ast, Config.optimizationLevel.iterations) }
     if(Config.isPicked(PRINT_AST)) {
         println("--  optimized  --\n")
         printAST(optimized)

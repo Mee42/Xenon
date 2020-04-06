@@ -1,0 +1,11 @@
+
+
+@pure int strlen(char* string) {
+    mut int size = 0 
+    while((*string) != cast_char(0)) {
+        //println(*string)
+        string = string + 1
+        size = size + 1 
+    }
+    return size
+}

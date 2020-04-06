@@ -11,16 +11,16 @@ fun decompileFunction(function: XenonFunction): String {
     s += " " + decompile(function.returnType)
     s += " " + function.identifier
     s += function.arguments.joinToString(", ", "(", ")") { decompile(it.type) + " " + it.name }
-    s += decompileBlock(function.content, "".more())
+    s += decompileBlock(function.content, "".more(), "")
     return s
 }
 
-fun decompileBlock(block: Block, indent: Indent): String {
+fun decompileBlock(block: Block, indent: Indent, lastIndent: Indent): String {
     var s = ""
     s += "{\n"
     for(statement in block.statements) {
         s += indent + when(statement) {
-            is Block -> decompileBlock(statement, indent.more()) + ";\n"
+            is Block -> decompileBlock(statement, indent.more(), indent) + ";\n"
             is ReturnStatement -> "return " + decompile(statement.expression, indent) + ";\n"
             NoOpStatement -> "//nop\n"
             is ExpressionStatement -> decompile(statement.expression, indent) + ";\n"
@@ -35,14 +35,14 @@ fun decompileBlock(block: Block, indent: Indent): String {
                 "*(" + decompile(statement.location, indent) + ") = " + decompile(statement.value, indent) + ";\n"
             }
             is IfStatement -> {
-                "if " + decompile(statement.conditional, indent) + decompileBlock(statement.block, indent.more()) + ";\n"
+                "if " + decompile(statement.conditional, indent) + " " + decompileBlock(statement.block, indent.more(), indent) + ";\n"
             }
             is WhileStatement -> {
-                "while " + decompile(statement.conditional, indent) + decompileBlock(statement.block, indent.more()) + "&\n"
+                "while " + decompile(statement.conditional, indent) + " " + decompileBlock(statement.block, indent.more(), indent) + "\n"
             }
         }
     }
-    return "$s}\n"
+    return "$s$lastIndent}"
 }
 
 
@@ -55,7 +55,7 @@ fun decompile(type: Type): String {
 fun decompile(expression: Expression, indent: Indent): String {
     return when(expression) {
         is VariableAccessExpression -> expression.variableName
-        is BlockExpression -> decompileBlock(Block(expression.statements), indent.more())
+        is BlockExpression -> decompileBlock(Block(expression.statements), indent.more(), indent)
         is DereferencePointerExpression -> "*(" + decompile(expression.pointerExpression, indent) + ")"
         is IntegerValueExpression -> expression.value.toString()
         is StringLiteralExpression -> '"' + expression.value.replace("\n","\\n") + '"'

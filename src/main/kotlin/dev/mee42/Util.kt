@@ -4,27 +4,41 @@ import dev.mee42.parser.ParseException
 import java.util.*
 
 
-class ConsumableQueue<T>(creator: Collection<T>) {
-    private val queue = ArrayDeque(creator)
-    private fun isEmpty() = queue.isEmpty()
-    fun peek(): T? = if(isEmpty()) null else queue.first
-    fun isNotEmpty() = queue.isNotEmpty()
-    fun remove(): T = if(isEmpty()) throw ParseException("reached end of file while parsing") else queue.remove()
-    fun removeWhile(condition: (T) -> Boolean): List<T> {
-        val list = mutableListOf<T>()
-        while(true){
-            if(queue.isEmpty()) throw ParseException("reached end of file while parsing")
-            if(condition(queue.peek())){
-                list.add(queue.remove())
-            } else {
-                return list
+
+fun printTable(col1: List<String>? = null, title1: String? = null,
+               col2: List<String>? = null, title2: String? = null,
+               col3: List<String>? = null, title3: String? = null,
+               col4: List<String>? = null, title4: String? = null) {
+    val columns = // just discard the title
+            listOf(col1 to title1, col2 to title2, col3 to title3, col4 to title4).mapNotNull { (col, title) ->
+                if (title == null && col == null) null
+                else if (col == null) null // just discard the title
+                else if (title == null) col to ""
+                else col to title
             }
+    if(columns.isEmpty()) error("can't print an empty table")
+    val columnsResized = columns.map { (list, title) ->
+        val maxLength = (list + title).maxBy { it.length }?.length ?: error("empty column")
+        list.map { it.padEnd(maxLength) } to title.padEnd(maxLength)
+    }
+
+    val titleBar = columnsResized.joinToString(" ┃ ", "┃ ", " ┃") { it.second }
+    val topBar   = columnsResized.joinToString("━┳━", "┏━", "━┓") { it.second.replace(Regex("""."""), "━") }
+    val belowBar = columnsResized.joinToString("━╋━", "┣━", "━┫") { it.second.replace(Regex("""."""), "━") }
+    val bottomBar= columnsResized.joinToString("━┻━", "┗━", "━┛") { it.second.replace(Regex("""."""), "━") }
+    println(topBar)
+    println(titleBar)
+    println(belowBar)
+    for(row in 0 until (columnsResized.maxBy { it.first.size }?.first?.size ?: error("no"))) {
+        print("┃ ")
+        for(column in columnsResized) {
+            print(column.first[row] + " ┃ ")
         }
+        println()
     }
-    fun shove(elem: T) {
-        queue.addFirst(elem)
-    }
+    println(bottomBar + "\n")
 }
+
 
 /**
  * When `includeSplitter` is false, the returned lists has no elements where `elem:splitAt(elem) == true`

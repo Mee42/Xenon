@@ -1,10 +1,10 @@
 package dev.mee42.parser
 
-import dev.mee42.ConsumableQueue
 import dev.mee42.InternalCompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.lexer.TokenType.*
+import java.util.*
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
 
@@ -25,16 +25,16 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
         throw InternalCompilerException(it.content.toString())
     }
     // this is a block, it has both the open and close brackets as tokens
-    val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = true) }
-    val block = parseBlock(ConsumableQueue(it.content), initialAST, arguments)
+    val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = false) }
+    val block = parseBlock(TokenQueue(ArrayDeque(it.content)), initialAST, arguments)
     return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes)
 }
 /** this assumes that tokens starts with a { and ends the block with a } */
-private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
+private fun parseBlock(tokens: TokenQueue, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
     tokens.remove().checkType(OPEN_BRACKET,"parseBlock expects token stream to start with an opening bracket")
     val statements = mutableListOf<Statement>()
     val scopedLocalVariables = mutableListOf<LocalVariable>()
-    while(tokens.peek()!!.type != CLOSE_BRACKET) {
+    while(tokens.peek().type != CLOSE_BRACKET) {
         val statement = parseStatement(tokens, initialAST, localVariables + scopedLocalVariables)
         if(statement is DeclareVariableStatement){
             scopedLocalVariables.add(LocalVariable(
@@ -49,13 +49,15 @@ private fun parseBlock(tokens: ConsumableQueue<Token>, initialAST: InitialAST, l
     return Block(statements)
 }
 
-private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: InitialAST, localVariables: List<LocalVariable>): Expression {
+private fun parseExpression(tokens: TokenQueue,  initialAST: InitialAST, localVariables: List<LocalVariable>): Expression {
     // okay, wonderful
     val first = tokens.remove()
     fun checkForOperator(expression: Expression): Expression {
-        val next = tokens.peek() ?: return expression
-        // so it's a variable access, and possibly has an operator after it
-        // ex:
+        val trueNext = tokens.peekWithNewline()
+        val next = tokens.peek()
+        if(trueNext.type == NEWLINE && next.type in listOf(ASTERISK, OPEN_PARENTHESES)) { // this list should expand in the future
+            return expression
+        }
         return when(next.type) {
             OPERATOR, ASTERISK -> {
                 tokens.remove() // consume it
@@ -100,12 +102,12 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
             IntegerValueExpression(if(first.type == TRUE) 1 else 0, BaseType(TypeEnum.BOOLEAN))
         }
         IDENTIFIER -> {
-            if (tokens.peek()?.type == OPEN_PARENTHESES) {
+            if (tokens.peek().type == OPEN_PARENTHESES) {
                 val arguments = mutableListOf<Expression>()
                 tokens.remove().checkType(OPEN_PARENTHESES, "popped token changed from last peek")
                 while (true) {
                     if (arguments.isEmpty()) {
-                        val token = tokens.peek() ?: error("no")
+                        val token = tokens.peek()
                         if (token.type == CLOSE_PARENTHESES) {
                             tokens.remove() // remove the close parentheses
                             break
@@ -154,7 +156,7 @@ private fun parseExpression(tokens: ConsumableQueue<Token>,  initialAST: Initial
     }
 }
 
-private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAST, localVariables: List<LocalVariable>): Statement {
+private fun parseStatement(tokens: TokenQueue, initialAST: InitialAST, localVariables: List<LocalVariable>): Statement {
     // this compiles ONE SINGLE STATEMENT
     var firstToken = tokens.remove()
     return when (firstToken.type) {
@@ -163,7 +165,7 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
             // parse an if statement
             val conditional = parseExpression(tokens, initialAST, localVariables)
             val block = parseBlock(tokens, initialAST, localVariables)
-            IfStatement.create(conditional, block)
+            IfStatement(conditional, block)
         }
         ASTERISK -> {
             // it's a deref
@@ -240,7 +242,7 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
                         final = !isMutable,
                         expression = expression
                 )
-            } else if(tokens.peek()!!.type == OPERATOR) {
+            } else if(tokens.peek().type == OPERATOR) {
                 val operator = tokens.remove()
                 if(operator.content == "=") {
                     val variable = localVariables.firstOrNull { it.name == firstToken.content } ?: throw ParseException("can't find variable ${firstToken.content}", firstToken)
@@ -262,12 +264,12 @@ private fun parseStatement(tokens: ConsumableQueue<Token>, initialAST: InitialAS
     }
 }
 
-fun ConsumableQueue<Token>.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurrounding: Boolean = false): List<Token> {
+fun TokenQueue.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurrounding: Boolean = false): List<Token> {
     val opening = this.remove().checkType(beginning, "must start with the proper opening token, ${beginning.name}")
     var count = 0
     val list = mutableListOf<Token>()
     if(includeSurrounding) list.add(opening)
-    this.removeWhile {
+    this.removeWhile(includeNewlines = true) {
         when (it.type) {
             beginning -> {
                 count++

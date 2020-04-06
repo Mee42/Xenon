@@ -1,7 +1,6 @@
 package dev.mee42.lexer
 
 import dev.mee42.CompilerException
-import dev.mee42.parser.ParseException
 import dev.mee42.xpp.LabeledLine
 import org.intellij.lang.annotations.Language
 
@@ -37,6 +36,7 @@ enum class TokenType(val regex: Regex) {
     ASTERISK("*"),
     DOT("."),
     @Language("RegExp") STRING(quote = false, str = """"((\\\\)|(\\")|(\\n)|(\\t)|[^"\\]*)+""""),
+    NEWLINE("\n"),
     @Language("RegExp") WHITESPACE(quote = false, str = """\s+"""),
     @Language("RegExp") ATTRIBUTE (quote = false, str = """@[a-zA-Z0-9_]*"""),
     @Language("RegExp") IDENTIFIER(quote = false, str = """[a-z][A-Za-z0-9_]*"""),
@@ -63,9 +63,10 @@ fun lex(lines: List<LabeledLine>): List<Token> {
                 break
             }
             if(!foundToken) {
-                throw TokenException(lineContent = line.content, index = index, line = line.index, message = "can't find token")
+                throw TokenException(lineContent = line.content, index = index, line = line.line, message = "can't find token")
             }
         }
+        tokens.add(Token(content = "NEWLINE", line = lineIndex, index = line.content.length, type = TokenType.NEWLINE, lineContent = line.content))
     }
     tokens.removeIf { it.type == TokenType.WHITESPACE }
     return tokens

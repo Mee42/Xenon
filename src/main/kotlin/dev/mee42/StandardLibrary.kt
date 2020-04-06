@@ -169,6 +169,7 @@ private val casts = lib {
         id = "_int"
         arguments = listOf("i".arg("int"))
         returnType = type("char")
+        attrib("@pure")
         assembly = """
         cast_char_int:
             mov rax, [rsp + 8]
@@ -178,6 +179,7 @@ private val casts = lib {
     function {
         name = "cast_short"
         id = "_int"
+        attrib("@pure")
         arguments = listOf("i".arg("int"))
         returnType = type("short")
         assembly  = """
@@ -188,6 +190,7 @@ private val casts = lib {
     }
     function {
         name = "cast_long"
+        attrib("@pure")
         id = "_int"
         arguments = listOf("i".arg("int"))
         returnType = type("long")
@@ -203,6 +206,7 @@ private val casts = lib {
     function {
         name = "cast_int"
         id = "_int_ptr"
+        attrib("@pure")
         arguments = listOf("i".arg("ubyte*"))
         returnType = type("int")
         assembly = """
@@ -217,6 +221,7 @@ private val bools = lib {
     function {
         name = "true"
         id = "_bool"
+        attrib("@pure")
         arguments = emptyList()
         returnType = type("bool")
         assembly = """
@@ -227,6 +232,7 @@ private val bools = lib {
     }
     function {
         name = "false"
+        attrib("@pure")
         id = "_bool"
         arguments = emptyList()
         returnType = type("bool")
@@ -238,6 +244,7 @@ private val bools = lib {
     }
     function {
         name = "and"
+        attrib("@pure")
         id = "_bool"
         arguments = listOf("a".arg("bool"),"b".arg("bool"))
         returnType = type("bool")
@@ -255,6 +262,7 @@ private val bools = lib {
     function {
         name = "or"
         id = "_bool"
+        attrib("@pure")
         arguments = listOf("a".arg("bool"),"b".arg("bool"))
         returnType = type("bool")
         assembly = """
@@ -271,6 +279,7 @@ private val bools = lib {
     function {
         name = "not"
         id = "_bool"
+        attrib("@pure")
         arguments = listOf("b".arg("bool"))
         returnType = type("bool")
         assembly = """
@@ -369,14 +378,15 @@ data class CompiledFunction(
     val id: String,
     val arguments: List<Argument>,
     val returnType: Type,
-    val assembly: String /* this includes the label */
+    val assembly: String/* this includes the label */,
+    val attributes: List<String>
 ) {
     fun toInitialFunction(): InitialFunction {
         return InitialFunction(
             name = name,
             id = id,
             arguments = arguments,
-            attributes = emptyList(),
+            attributes = attributes,
             returnType = returnType,
             content = null)
     }
@@ -421,8 +431,10 @@ private class FunctionBuilder {
     var arguments: List<Argument> = emptyList()
     var returnType: Type = type("void")
     var assembly: String? = null /* this includes the label */
+    private val attributes = mutableListOf<String>()
+    fun attrib(str: String) { attributes.add(str) }
     fun build(): CompiledFunction {
-        return CompiledFunction(name!!, id!!, arguments, returnType, assembly!!)
+        return CompiledFunction(name!!, id!!, arguments, returnType, assembly!!, attributes)
     }
 }
 @DslMarker

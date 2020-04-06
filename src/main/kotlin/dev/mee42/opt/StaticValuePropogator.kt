@@ -53,6 +53,9 @@ fun <T> id(t: T):T {
 }
 fun <T> applyIf(conditional: Boolean, map: (T) -> T) = if(conditional) map else ::id
 
+fun <T> applyN(n: Int, mapper: (T) -> T, initial: T): T = if(n == 0) initial
+                                                          else applyN(n - 1, mapper, mapper(initial))
+
 
 fun staticValuePropagator(function: XenonFunction): XenonFunction {
     val state = State() // function state
@@ -115,7 +118,11 @@ private fun Statement.optimize(state: State): Statement {
                 }
             }
         }
-        is WhileStatement -> this // improvable?
+        is WhileStatement -> {
+            conditional.optimize(state.newSubState())
+            block.optimize(state.newSubState())
+            this // make sure the conditional and the block get covered
+        } // improvable?
     }
 }
 

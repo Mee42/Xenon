@@ -1,7 +1,6 @@
 package dev.mee42.parser
 
 import dev.mee42.CompilerException
-import dev.mee42.ConsumableQueue
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenException
 import dev.mee42.lexer.TokenType

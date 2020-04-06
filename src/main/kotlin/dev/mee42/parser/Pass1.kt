@@ -1,17 +1,16 @@
 package dev.mee42.parser
 
-import dev.mee42.ConsumableQueue
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.splitBy
+import java.util.*
 
 fun parsePass1(tokens: List<Token>): InitialAST {
     // so, the first token needs to a starterToken
-    val queue = ConsumableQueue(tokens)
+    val queue = TokenQueue(ArrayDeque(tokens))
     val functions = mutableListOf<InitialFunction>()
     while(queue.isNotEmpty()) {
-        val start = queue.peek()!!
-//        var attributes = mutableListOf<String>()
+        val start = queue.peek()
         when(start.type) {
             TokenType.IDENTIFIER, TokenType.ATTRIBUTE -> {
                 functions.add(initialPassParseFunction(queue))
@@ -26,7 +25,7 @@ fun parsePass1(tokens: List<Token>): InitialAST {
 }
 
 
-private fun initialPassParseFunction(tokens: ConsumableQueue<Token>): InitialFunction {
+private fun initialPassParseFunction(tokens: TokenQueue): InitialFunction {
     // we already consumer the function keyword, lol
     // lets take all the attributes
     val attributes = tokens.removeWhile { it.type == TokenType.ATTRIBUTE }

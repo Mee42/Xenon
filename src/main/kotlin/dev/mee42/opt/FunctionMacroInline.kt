@@ -71,7 +71,11 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
                             functionIdentifier = expression.functionIdentifier,
                             argumentNames = expression.argumentNames)
                 }
-            } else expression
+            } else FunctionCallExpression(
+                    arguments = expression.arguments.map { inlineMacros(it, ast) },
+                            returnType = expression.returnType,
+                            functionIdentifier = expression.functionIdentifier,
+                            argumentNames = expression.argumentNames)
         }
         is BlockExpression -> BlockExpression(
                 statements = expression.statements.map { inlineMacros(it, ast) }
