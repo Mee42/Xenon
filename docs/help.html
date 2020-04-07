@@ -5,7 +5,8 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.10">
-<title>Untitled</title>
+<meta name="author" content="Carson Graham">
+<title>xenon(1)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
 /* Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
@@ -436,83 +437,110 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 @media amzn-kf8{#header,#content,#footnotes,#footer{padding:0}}
 </style>
 </head>
-<body class="article">
+<body class="manpage">
 <div id="header">
+<h1>xenon(1) Manual Page</h1>
+<h2 id="_name">NAME</h2>
+<div class="sectionbody">
+<p>xenon - A natively compiled programming language similar to C</p>
+</div>
 </div>
 <div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
 <div class="paragraph">
-<p>Xenon, a natively compiled programming language</p>
+<p>xenon [<em>OPTIONS</em>]&#8230;&#8203; <em>FILE</em></p>
 </div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_description">DESCRIPTION</h2>
+<div class="sectionbody">
 <div class="paragraph">
-<p>Usage:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre>$ xenon -O3 -ono-reshuffle main.xenon</pre>
+<p>The xenon(1) command converts Xenon Source file <em>FILE</em> into NASM assembly, object files, or x64/x86 machine code.</p>
 </div>
 </div>
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 50%;">
-<col style="width: 50%;">
-</colgroup>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-o[name]</code>, <code>--optimize=[name]</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Enables the optimisation with the name <code>name</code></p></td>
-</tr>
-</tbody>
-</table>
+</div>
+<div class="sect1">
+<h2 id="_options">OPTIONS</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_compiler_options">Compiler Options</h3>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">-f <em>FORMAT</em>, --format <em>FORMAT</em></dt>
+<dd>
+<p><em>FORMAT</em> must be one of the following: <em>NASM</em>, <em>OBJECT</em>, <em>NATIVE</em>.
+By default, it is native. <em>NASM</em> will output only assembly (in NASM format).
+<em>OBJECT</em> will output the assembly after it&#8217;s been ran through the NASM command (see below).
+<em>NATIVE</em> will run the object file through the gcc command, outputting a binary executable.</p>
+</dd>
+<dt class="hdlist1">--nasm <em>NASM_COMMAND</em></dt>
+<dd>
+<p><em>NASM_COMMAND</em> is a string which is ran through a find-replace and then executed.
+<code>{i}</code> is replaced by the input file name/path, in quotes,
+and <code>{o}</code> is replaced by the output file in the same way.
+This command is ran at in the <code><em>BUILD_DIR</em>/<em>FILENAME_ID</em>/</code> directory, so it may create files.</p>
 <div class="paragraph">
-<p>list of optimizations:</p>
+<p>An example of this: <code>--nasm "nasm -felf64 {i} -o {o}"</code></p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p>dead-code-elem</p>
-</li>
-<li>
-<p>inline-macros</p>
-</li>
-<li>
-<p>reshuffle</p>
-</li>
-<li>
-<p>value-propagator</p>
-</li>
-<li>
-<p>flatten-typeless-blocks</p>
-</li>
-</ul>
-</div>
+</dd>
+<dt class="hdlist1">--gcc <em>GCC_COMMAND</em></dt>
+<dd>
+<p><em>GCC_COMMAND</em> is similar to the <em>NASM_COMMAND</em>, but instead is the object file-to-binary command.
+It is ran in the same place as the <em>NASM_COMMAND</em>.
+Nothing is done between the two commands, if they are both scheduled to run.</p>
 <div class="paragraph">
-<p><code>no</code> can be appended to the beginning of any of those names to explicitly remove it.
-For example, <code>-ono-reshuffle</code>.
-By default, they are all off. By doing <code>-O[n]</code> for any value <code>n &gt; 0</code>, they are all enabled,
-and can be explicitly removed if wanted. With <code>-O0</code>, no optimizations are applied, regardless
-if they are specified in the command arguments.
-This is designed to allow for optimizations that are disabled by default.</p>
+<p>As an example, <code>--gcc "gcc {i} -no-pie -o {o}"</code></p>
 </div>
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 50%;">
-<col style="width: 50%;">
-</colgroup>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-O[n]</code>, <code>--optimization-level=[n]</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Enable optimization level <code>n</code>.
-<code>n</code> must be an integer from 0 to 10 inclusive.
-<code>-O0</code> is the default, and disables all optimization.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-v[name]</code>, <code>--verbose=[name]</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Enable the verbose output of <code>name</code>.</p></td>
-</tr>
-</tbody>
-</table>
+</dd>
+<dt class="hdlist1">-b <em>BUILD_DIR</em>, --build __BUILD_DIR</dt>
+<dd>
+<p>The directory to put intermediate build files into.</p>
 <div class="paragraph">
-<p>list of verbose options:</p>
+<p>The build directory is organized into several folders to mirror the source file structure.
+For each file, a directory is created with the name plus a tiny hashcode.
+Inside that directory the source file, object file, and binary file are placed.</p>
+</div>
+</dd>
+</dl>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_optimization_options">Optimization Options</h3>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">-o<em>NAME</em>, --optimize <em>NAME</em></dt>
+<dd>
+<p>Enables the optimisation with the name <em>NAME</em>.
+Possible values include <em>dead-code-elem</em>,
+<em>inline-macros</em>, <em>reshuffle</em>, <em>value-propagator</em>, and <em>flatten-typeless-blocks</em></p>
+</dd>
+<dt class="hdlist1">-ono<em>NAME</em>, --optimize no<em>NAME</em></dt>
+<dd>
+<p>Disable the optimization with the name <em>NAME</em>.
+See above for options.</p>
+</dd>
+<dt class="hdlist1">-O<em>N</em>, --optimization-level <em>N</em></dt>
+<dd>
+<p>If <em>N</em> is 0, no optimization is applied. The is the default.
+If <em>N</em> is an integer between 1 and 10 inclusive,
+the default optimization settings are enabled and the optimizer is ran <em>N</em>
+passes over the AST.</p>
+</dd>
+</dl>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_verbosity_options">Verbosity Options</h3>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">-v, -v<em>NAME</em>, --verbose</dt>
+<dd>
+<p>Enables the verbose output titled <em>NAME</em>.</p>
+</dd>
+</dl>
 </div>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -540,30 +568,37 @@ This is designed to allow for optimizations that are disabled by default.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>-vast</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Print both the non-optimized and optimized AST</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Print both the non-optimized and optimized AST.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>-vdecompile-ast</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Print a decompiled AST</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Print a decompiled AST.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>-vtokens</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Print the lexed tokens</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Print the lexed tokens.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>-vpurity</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Print the purity of each defined function.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-vall</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-vall</code>, <code>-vv</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Print all of the above.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-v</code>, <code>--verbose</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Print a helpful subset of the above.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
+</div>
+</div>
+</div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-04-06 21:33:15 -0400
+Last updated 2020-04-07 12:35:11 -0400
 </div>
 </div>
 </body>

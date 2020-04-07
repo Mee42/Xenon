@@ -181,8 +181,19 @@ fun SizedRegister.advanced(): AdvancedRegister {
         register = this,
         size = this.size)
 }
-inline fun <reified T> buildList(crossinline block: MutableList<T>.() -> Unit): List<T> {
+
+@FunctionalInterface
+interface ListBuilder<T> { operator fun plusAssign(t: T); operator fun plusAssign(t: List<T>) }
+inline fun <reified T> buildList(crossinline builder: ListBuilder<T>.() -> Unit): List<T>{
     val list = mutableListOf<T>()
-    block(list)
+    builder.invoke(object : ListBuilder<T> {
+        override fun plusAssign(t: T) {
+            list.add(t)
+        }
+
+        override fun plusAssign(t: List<T>) {
+            list.addAll(t)
+        }
+    })
     return list
 }

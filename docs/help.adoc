@@ -18,45 +18,56 @@ The xenon(1) command converts Xenon Source file _FILE_ into NASM assembly, objec
 
 == OPTIONS
 
+=== Compiler Options
+
+
+-f __FORMAT__, --format __FORMAT__::
+  __FORMAT__ must be one of the following: __NASM__, __OBJECT__, __NATIVE__.
+  By default, it is native. __NASM__ will output only assembly (in NASM format).
+  __OBJECT__ will output the assembly after it's been ran through the NASM command (see below).
+  __NATIVE__ will run the object file through the gcc command, outputting a binary executable.
+
+--nasm __NASM_COMMAND__::
+  __NASM_COMMAND__ is a string which is ran through a find-replace and then executed.
+  `{i}` is replaced by the input file name/path, in quotes,
+  and `{o}` is replaced by the output file in the same way.
+  This command is ran at in the `__BUILD_DIR__/__FILENAME_ID__/` directory, so it may create files.
++
+An example of this: `--nasm "nasm -felf64 {i} -o {o}"`
+
+--gcc __GCC_COMMAND__::
+  __GCC_COMMAND__ is similar to the __NASM_COMMAND__, but instead is the object file-to-binary command.
+  It is ran in the same place as the __NASM_COMMAND__.
+  Nothing is done between the two commands, if they are both scheduled to run.
++
+As an example, `--gcc "gcc {i} -no-pie -o {o}"`
+
+-b __BUILD_DIR__, --build __BUILD_DIR::
+  The directory to put intermediate build files into.
+
++
+The build directory is organized into several folders to mirror the source file structure.
+For each file, a directory is created with the name plus a tiny hashcode.
+Inside that directory the source file, object file, and binary file are placed.
+
 === Optimization Options
 
-*-o__NAME__, --optimize=__NAME__::
-  Enables the optimisation with the name __NAME__
-*-ono__NAME__, --optimize=no__NAME__::
-  Disable the optimization with the name __NAME__
-*-O__N__, --optimization-level=__N__::
-  Enables
+-o__NAME__, --optimize __NAME__::
+  Enables the optimisation with the name __NAME__.
+  Possible values include _dead-code-elem_,
+  _inline-macros_, _reshuffle_, _value-propagator_, and _flatten-typeless-blocks_
+-ono__NAME__, --optimize no__NAME__::
+  Disable the optimization with the name __NAME__.
+  See above for options.
+-O__N__, --optimization-level __N__::
+  If __N__ is 0, no optimization is applied. The is the default.
+  If __N__ is an integer between 1 and 10 inclusive,
+  the default optimization settings are enabled and the optimizer is ran __N__
+  passes over the AST.
 
-
-
-
-////
-
-
-|===
-| Name | Description
-| dead-code-elem | Eliminates dead code
-| inline-macros  | Inlines functions marked as `@macro` and `@inline`. See below.
-| reshuffle | Reshuffle expressions to be faster to execute.
-| value-propagator | Eliminate useless variables by propagating their values across the code.
-| flatten-typeless-blocks | Allows for much greater contextual optimization.
-|===
-
-`no` can be appended to the beginning of any of those names to explicitly remove it.
-For example, `-ono-reshuffle`.
-By default, they are all off. By doing `-O[n]` for any value `n > 0`, they are all enabled,
-and can be explicitly removed if wanted. With `-O0`, no optimizations are applied, regardless
-if they are specified in the command arguments.
-This is designed to allow for optimizations that are disabled by default.
-
-
-| `-O[n]`, `--optimization-level=[n]`| Enable optimization level `n`.
-`n` must be an integer from 0 to 10 inclusive.
-`-O0` is the default, and disables all optimization.
-| `-v[name]`, `--verbose=[name]` | Enable the verbose output of `name`.
-|===
-
-list of verbose options:
+=== Verbosity Options
+-v, -v__NAME__, --verbose::
+  Enables the verbose output titled __NAME__.
 
 |===
 | Flag | Description
@@ -64,11 +75,10 @@ list of verbose options:
 | `-vend-timings` | Print how long it took to run and compile.
 | `-vend-compile-timings` | Print how long each portion of the compiler took to run.
 | `-voptimizations` | Print debug information about how each optimization was applied.
-| `-vast` | Print both the non-optimized and optimized AST
-| `-vdecompile-ast` | Print a decompiled AST
-| `-vtokens` | Print the lexed tokens
+| `-vast` | Print both the non-optimized and optimized AST.
+| `-vdecompile-ast` | Print a decompiled AST.
+| `-vtokens` | Print the lexed tokens.
 | `-vpurity` | Print the purity of each defined function.
 | `-vall`, `-vv` | Print all of the above.
-| `-v` | Print a helpful subset of the above
+| `-v`, `--verbose` | Print a helpful subset of the above.
 |===
-////

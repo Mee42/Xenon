@@ -6,6 +6,7 @@ version = "v0.0.1"
 plugins {
     java
     kotlin("jvm") version "1.3.40"
+    id("com.github.johnrengelman.shadow") version "5.2.0"
 }
 
 
@@ -30,4 +31,12 @@ compileKotlin.kotlinOptions {
 val compileTestKotlin: KotlinCompile by tasks
 compileTestKotlin.kotlinOptions {
     jvmTarget = "1.8"
+}
+
+tasks.withType<Jar> {
+    manifest {
+        attributes(mapOf(
+                "Main-Class" to "dev.mee42.arg.MainKt"
+        ))
+    }
 }
