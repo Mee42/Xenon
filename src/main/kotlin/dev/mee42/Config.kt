@@ -37,5 +37,11 @@ object Config {
     fun isPicked(flag: Flag): Boolean {
         return flags.contains(flag)
     }
+    class Test(var x: String? = "hi")
+    fun test() {
+        val test: Test? = Test("goodbye")
+        test!!.x = null // set the thing to null
+    }
 }
+
 

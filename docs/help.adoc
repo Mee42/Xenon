@@ -64,6 +64,10 @@ Inside that directory the source file, object file, and binary file are placed.
   If __N__ is an integer between 1 and 10 inclusive,
   the default optimization settings are enabled and the optimizer is ran __N__
   passes over the AST.
++
+__N__=3 is recommended for general development,
+__N__=10 for release,
+and __N__=0 for debugging the compiler.
 
 === Verbosity Options
 -v, -v__NAME__, --verbose::
