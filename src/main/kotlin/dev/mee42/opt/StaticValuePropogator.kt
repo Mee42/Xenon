@@ -129,7 +129,7 @@ private fun Statement.optimize(state: State): Statement {
 private fun Expression.isFlat(): Value? {
     return if(this is IntegerValueExpression) {
         if(type == type("bool")) {
-            Value(type("bool"),value != 0)
+            Value(type("bool"),value != 0L)
         } else {
             Value(type("int"), value)
         }
@@ -139,7 +139,7 @@ private fun Value.toExpr(): Expression {
     return if(this.type == type("bool")) {
         IntegerValueExpression(if(this.value as Boolean) 1 else 0, BaseType(TypeEnum.BOOLEAN))
     } else {
-        IntegerValueExpression(this.value as Int, BaseType(TypeEnum.INT32))
+        IntegerValueExpression(this.value as Long, BaseType(TypeEnum.INT32))
     }
 }
 private fun Expression.optimize(state: State): Expression {

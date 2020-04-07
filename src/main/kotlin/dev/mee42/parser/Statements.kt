@@ -1,7 +1,5 @@
 package dev.mee42.parser
 
-import dev.mee42.Config
-
 
 sealed class Statement{
     abstract val localVariableMaxBytes: Int
@@ -27,7 +25,7 @@ data class DeclareVariableStatement(val variableName: String, val final: Boolean
     override val localVariableMaxBytes: Int = expression.type.size.bytes
 }
 data class AssignVariableStatement(val variableName: String, val expression: Expression) : Statement() {
-    override val localVariableMaxBytes: Int = expression.type.size.bytes
+    override val localVariableMaxBytes: Int = 0
 }
 
 data class MemoryWriteStatement(val location: Expression, val value: Expression): Statement() {

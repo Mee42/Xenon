@@ -15,6 +15,17 @@ private val println = lib {
         """.trimIndent()
     }
     function {
+        name = "println"
+        id = "_uint"
+        arguments = listOf("i".arg("uint"))
+        assembly = """
+            println_uint:
+                mov rdi, printf_format_uint_newline
+                jmp printf_main
+        """.trimIndent()
+    }
+
+    function {
         name = "print"
         id = "_int"
         arguments = listOf("i".arg("int"))
@@ -24,6 +35,40 @@ private val println = lib {
                 jmp printf_main
         """.trimIndent()
     }
+
+    function {
+        name = "println"
+        id = "_long"
+        arguments = listOf("l".arg("long"))
+        assembly = """
+            println_long:
+                mov rdi, printf_format_int_newline
+                jmp printf_main
+        """.trimIndent()
+    }
+    function {
+        name = "println"
+        id = "_short"
+        arguments = listOf("b".arg("short"))
+        assembly = """
+            println_short:
+                mov rdi, printf_format_int_newline
+                jmp printf_main
+        """.trimIndent()
+    }
+    function {
+        name = "println"
+        id = "_byte"
+        arguments = listOf("b".arg("byte"))
+        assembly = """
+            println_byte:
+                mov rdi, printf_format_int_newline
+                jmp printf_main
+        """.trimIndent()
+    }
+
+
+
     function {
         name = "println"
         id = "_char"
@@ -110,6 +155,7 @@ private val println = lib {
     extraData(
         """
             printf_format_int_newline: db "%i", 10,  0
+            printf_format_uint_newline: db "%u", 10,  0
             printf_format_int: db "%i", 0
             printf_format_newline: db 10, 0
             printf_format_char_newline: db "%c", 10, 0
@@ -215,6 +261,49 @@ private val casts = lib {
                 ret
         """.trimIndent()
     }
+
+
+    // casts to int
+    function {
+        name = "cast_uint"
+        attrib("@pure")
+        id = "_ubyte"
+        arguments = listOf("x".arg("ubyte"))
+        returnType = type("uint")
+        assembly = """
+            cast_uint_ubyte:
+                xor rax, rax
+                mov al, BYTE [rsp + 8]
+                ret
+        """.trimIndent()
+    }
+    function {
+        name = "cast_uint"
+        attrib("@pure")
+        id = "_ushort"
+        arguments = listOf("x".arg("ushort"))
+        returnType = type("uint")
+        assembly = """
+            cast_uint_ushort:
+                xor rax, rax
+                mov ax, WORD [rsp + 8]
+                ret
+        """.trimIndent()
+    }
+
+    function {
+        name = "cast_uint"
+        attrib("@pure")
+        id = "_ulong"
+        arguments = listOf("x".arg("ulong"))
+        returnType = type("uint")
+        assembly = """
+            cast_uint_ulong:
+                mov rax, QWORD [rsp + 8]
+                ret
+        """.trimIndent()
+    }
+
 }
 
 private val bools = lib {

@@ -32,14 +32,19 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
     // for now, let's fit everything into 8 bytes?
     // yeah
     // sure
-    var position = function.arguments.size * 8 + 8
+    fun Int.padUpTo16(): Int {
+        return if(this % 16 == 0) this
+               else this + 16 - (this % 16)
+    }
+    var position = function.arguments.sumBy { 8 /*arguments are 8 bytes because they're pushed to the stack*/ /*it.type.size.bytes*/ }.plus(8).padUpTo16()
     function.arguments.forEachIndexed { i, it ->
         val register = stackPointerRegister(position, it.type.size)
         position -= 8
         variableBindings.add(Variable(it.name, it.type, register))
         this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
     }
-    val localVariableSize = function.content.localVariableMaxBytes.let { if(it % 16 == 0) it else it + 16 - it % 16 }
+    val max = function.content.localVariableMaxBytes
+    val localVariableSize = max.padUpTo16()
     this += AssemblyInstruction.Push(Register.BP) // push rbp so we don't lose it when we return
     this += AssemblyInstruction.Mov(
         reg1 = SizedRegister(RegisterSize.BIT64, Register.BP).advanced(),
@@ -57,7 +62,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
         this += AssemblyInstruction.Pop(Register.BP)
         this += AssemblyInstruction.Ret
     }
-    this += assembleBlock(variableBindings, ast, accumulatorRegister, function.content, -8, returnInstructions)
+    this += assembleBlock(variableBindings, ast, accumulatorRegister, function.content, 0, returnInstructions)
 }
 
 
@@ -85,8 +90,9 @@ fun assembleBlock(variableBindings: List<Variable>,
             is DeclareVariableStatement -> {
                 val expression = statement.expression
                 val size = expression.type.size
+                localVariableLocation -= size.bytes
+
                 val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size, localVariableLocation)
-                localVariableLocation -= 8
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
                 this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
                 localVariables.add(Variable(

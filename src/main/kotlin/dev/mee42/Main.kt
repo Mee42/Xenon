@@ -20,7 +20,7 @@ fun main(args: Array<String>) {
     val file = File(args.firstOrNull() ?: error("you need to specify a file"))
     val (program, compileTime)  = compile(file.readText(), stdlib, args.first())
     val runtime = run(program).toMillis()
-    if(Config.isPicked(PRINT_END_TIMING)) System.err.println("\nCompile Time: ${compileTime.toMillis()}\nTOTAL: $runtime ms")
+    if(Config.isPicked(PRINT_END_TIMING)) System.err.println("\nCompile Time:${compileTime.toMillis().toString().padStart(5)} ms\nRuntime:     ${runtime.toString().padStart(5)} ms")
 }
 
 private fun <A> timeAndGet(name: String, print: Boolean = true , block: () -> A): Pair<A,Duration> {

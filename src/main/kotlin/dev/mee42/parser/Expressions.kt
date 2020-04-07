@@ -15,7 +15,7 @@ class TypelessBlock(val expressions: List<Expression>): Expression(BaseType(Type
 class BlockExpression(val statements: List<Statement>): Expression((statements.last() as ExpressionStatement).expression.type)
 
 class DereferencePointerExpression(val pointerExpression: Expression): Expression((pointerExpression.type as PointerType).type)
-class IntegerValueExpression(val value: Int, override val type: BaseType) :Expression(type) {
+class IntegerValueExpression(val value: Long, override val type: BaseType) :Expression(type) {
     override fun toString(): String {
         return "INT_VALUE($value:$type)"
     }

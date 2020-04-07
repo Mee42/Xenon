@@ -6,10 +6,12 @@ object Config {
     enum class OptimizeLevel(val iterations: Int){
         O0(0), O1(1), O2(3), O3(10)
     }
-    var optimizationLevel: OptimizeLevel = OptimizeLevel.O2
+    var optimizationLevel: OptimizeLevel = OptimizeLevel.O0
 
     private val flags = listOf<Flag>(
-//            Flag.PRINT_ASM_ID
+//            Flag.PRINT_ASM_ID,
+//            Flag.PRINT_END_TIMING,
+            Flag.VERBOSE
 //            Flag.PRINT_AST,
 //            Flag.DECOMPILE_AST
 //            Flag.PRINT_LEXED,

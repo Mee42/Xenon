@@ -7,7 +7,7 @@ syntax keyword XKeyword if return while
 syntax keyword XBool false true
 syntax keyword XPrimitive bool byte ubyte short ushort int uint long ulong int8 int16 int32 int64 uint8 uint16 uint32 uint64 char 
 syntax keyword XVal val mut
-syntax match XInt /-\=[0-9]\+/
+syntax match XInt /-\=[0-9]\+\(ub\|us\|ui\|ul\|b\|s\|i\|l\|i\|\)/
 syntax match XOperator "\v\*"
 syntax match XOperator "\v\+"
 syntax match XOperator "\v-"

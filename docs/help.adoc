@@ -1,0 +1,74 @@
+= xenon(1)
+Carson Graham
+:doctype: manpage
+:man manual: Xenon Manual
+:man source: Xenon latest commit
+:page-layout: base
+
+== NAME
+xenon - A natively compiled programming language similar to C
+
+== SYNOPSIS
+
+xenon [_OPTIONS_]... _FILE_
+
+== DESCRIPTION
+
+The xenon(1) command converts Xenon Source file _FILE_ into NASM assembly, object files, or x64/x86 machine code.
+
+== OPTIONS
+
+=== Optimization Options
+
+*-o__NAME__, --optimize=__NAME__::
+  Enables the optimisation with the name __NAME__
+*-ono__NAME__, --optimize=no__NAME__::
+  Disable the optimization with the name __NAME__
+*-O__N__, --optimization-level=__N__::
+  Enables
+
+
+
+
+////
+
+
+|===
+| Name | Description
+| dead-code-elem | Eliminates dead code
+| inline-macros  | Inlines functions marked as `@macro` and `@inline`. See below.
+| reshuffle | Reshuffle expressions to be faster to execute.
+| value-propagator | Eliminate useless variables by propagating their values across the code.
+| flatten-typeless-blocks | Allows for much greater contextual optimization.
+|===
+
+`no` can be appended to the beginning of any of those names to explicitly remove it.
+For example, `-ono-reshuffle`.
+By default, they are all off. By doing `-O[n]` for any value `n > 0`, they are all enabled,
+and can be explicitly removed if wanted. With `-O0`, no optimizations are applied, regardless
+if they are specified in the command arguments.
+This is designed to allow for optimizations that are disabled by default.
+
+
+| `-O[n]`, `--optimization-level=[n]`| Enable optimization level `n`.
+`n` must be an integer from 0 to 10 inclusive.
+`-O0` is the default, and disables all optimization.
+| `-v[name]`, `--verbose=[name]` | Enable the verbose output of `name`.
+|===
+
+list of verbose options:
+
+|===
+| Flag | Description
+
+| `-vend-timings` | Print how long it took to run and compile.
+| `-vend-compile-timings` | Print how long each portion of the compiler took to run.
+| `-voptimizations` | Print debug information about how each optimization was applied.
+| `-vast` | Print both the non-optimized and optimized AST
+| `-vdecompile-ast` | Print a decompiled AST
+| `-vtokens` | Print the lexed tokens
+| `-vpurity` | Print the purity of each defined function.
+| `-vall`, `-vv` | Print all of the above.
+| `-v` | Print a helpful subset of the above
+|===
+////

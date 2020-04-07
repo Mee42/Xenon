@@ -4,6 +4,7 @@ import dev.mee42.InternalCompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.lexer.TokenType.*
+import dev.mee42.parser.TypeEnum.*
 import java.util.*
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
@@ -82,8 +83,20 @@ private fun parseExpression(tokens: TokenQueue,  initialAST: InitialAST, localVa
     return when (first.type) {
         INTEGER -> {
             val str = first.content
-            // int32 is the only option as of rn
-            checkForOperator(str.toIntOrNull()?.let { IntegerValueExpression(it, BaseType(TypeEnum.INT32)) }
+            val typeChars = str.takeLastWhile { it in listOf('b','s','i','l','u') }
+            val type = when(typeChars){
+                "b" -> INT8
+                "s" -> INT16
+                "i" -> INT32
+                "l" -> INT64
+                "ub" -> UINT8
+                "us" -> UINT16
+                "ui", "u" -> UINT32
+                "ul" -> UINT64
+                else -> INT32
+            }
+            val number = str.dropLast(typeChars.length)
+            checkForOperator(number.toLongOrNull()?.let { IntegerValueExpression(it, BaseType(type)) }
                 ?: throw ParseException("can't support that type of integer", first))
         }
         OPEN_PARENTHESES -> {
@@ -144,7 +157,7 @@ private fun parseExpression(tokens: TokenQueue,  initialAST: InitialAST, localVa
         }
         CHARACTER -> {
             val str = first.content[1]
-            IntegerValueExpression(str.toByte().toInt(), BaseType(TypeEnum.UINT8))
+            IntegerValueExpression(str.toByte().toLong(), BaseType(UINT8))
         }
         STRING -> {
             StringLiteralExpression(first.content.substring(1, first.content.lastIndex)
