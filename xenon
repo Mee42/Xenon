@@ -1,0 +1,1 @@
+java -jar build/libs/xenon-v0.0.1-all.jar "$@"
