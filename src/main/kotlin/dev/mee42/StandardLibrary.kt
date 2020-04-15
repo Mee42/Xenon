@@ -449,6 +449,7 @@ private val malloc = lib {
 }
 
 val stdlib = println + casts + bools + malloc + printf
+val stdLibDef = InitialAST(stdlib.functions.map { it.toInitialFunction() }, emptyList())
 
 class XenonLibrary(val functions: List<CompiledFunction>,
                    val extraText: String,

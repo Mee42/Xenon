@@ -1,7 +1,7 @@
 package dev.mee42.opt
 
 import dev.mee42.Builder
-import dev.mee42.Config
+import dev.mee42.arg.VerboseOption
 import dev.mee42.asm.*
 import dev.mee42.asm.AssemblyInstruction.*
 import dev.mee42.asm.RegisterSize.*
@@ -135,7 +135,7 @@ private fun optimize(assembly: List<AssemblyInstruction>): List<AssemblyInstruct
 //            println("testing \"${optimization.name}\" on $subset")
             val new = optimization.runner(subset) ?: continue
 //            println("succeeded!")
-            if(Config.isPicked(Config.Flag.PRINT_OPTIMIZATIONS)) println("applying optimization ${optimization.name}: $subset -> $new ")
+            VerboseOption.OPTIMIZATIONS.println("applying optimization ${optimization.name}: $subset -> $new ")
             return optimize(assembly.subList(0,i) + new + assembly.subList(i + optimization.size, assembly.size))
         }
     }

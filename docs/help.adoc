@@ -15,7 +15,7 @@ xenon [_OPTIONS_]... _FILE_
 == DESCRIPTION
 
 The xenon(1) command converts Xenon Source file _FILE_ into NASM assembly, object files, or x64/x86 machine code.
-Single-character options can __not__ be combined into the same block, ie `-fe`.
+Single-character options __cannot__ be combined into the same block, ie `-fe`.
 
 == OPTIONS
 

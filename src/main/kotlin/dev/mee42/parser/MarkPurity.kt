@@ -1,7 +1,7 @@
 package dev.mee42.parser
 
 import dev.mee42.CompilerException
-import dev.mee42.Config
+import dev.mee42.arg.VerboseOption
 import dev.mee42.parser.FunctionLink.*
 import dev.mee42.printTable
 
@@ -14,13 +14,13 @@ fun markPurity(ast: AST): AST {
             throw CompilerException("function ${function.name} was marked pure, but contains impure actions")
         }
     }
-    if(Config.isPicked(Config.Flag.PRINT_PURITY)) {
-printTable(
-        col1 = new.map { (a,_) -> a.identifier },
-        title1 = "Function Name",
-        col2 = new.map { (_, b) -> b.toString() },
-        title2 = "Purity"
-)
+    if(VerboseOption.PURITY.isSelected()) {
+        printTable(
+                col1 = new.map { (a,_) -> a.identifier },
+                title1 = "Function Name",
+                col2 = new.map { (_, b) -> b.toString() },
+                title2 = "Purity"
+        )
     }
     return AST(ast.functions.map {
         if(it is XenonFunction){

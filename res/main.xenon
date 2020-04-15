@@ -1,18 +1,7 @@
 //#lib res/stdlib.xenon
 
 int main() {   // bytes
-
-    mut val a = 5ub // 1 
-    val b = 6us // 2
-    val c = 7ui // 4
-    val d = 8ul // 8       
-    val e = 9ub // 1
-    a = 255ub
-     // total: 1
-    println(cast_uint(a))
-    println(cast_uint(b))
-    println(c)
-    println(cast_uint(d))
-    println(cast_uint(e))
-    return 0
+	mut val i = 0
+	println(i)
+	return 0
 }
