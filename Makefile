@@ -32,6 +32,6 @@ uninstall:
 	rm -rf /opt/xenon
 	rm -f /bin/xenon
 
-install: build docs installManPages baseInstall
+install: build installManPages baseInstall
 
 .PHONY: base docs clean build installManPages baseInstall install uninstall
