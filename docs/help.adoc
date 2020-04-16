@@ -31,21 +31,25 @@ Single-character options __cannot__ be combined into the same block, ie `-fe`.
 
 
 -f __FORMAT__, --format __FORMAT__::
-  __FORMAT__ must be one of the following: __NASM__, __OBJECT__, __NATIVE__.
+  __FORMAT__ must be one of the following: __NASM__, __OBJECT__, __NATIVE__, __RUN__.
   By default, it is native. __NASM__ will output only assembly (in NASM format).
   __OBJECT__ will output the assembly after it's been ran through the NASM command (see below).
   __NATIVE__ will run the object file through the gcc command, outputting a binary executable.
+  __RUN__ will run the outputted binary executable after it is created.
+
+--run::
+  A shortcut for --format RUN
 
 --nasm __NASM_COMMAND__::
-  __NASM_COMMAND__ is a string which is ran through a find-replace and then executed.
+  _NASM_COMMAND_ is a string which is ran through a find-replace and then executed.
   `{i}` is replaced by the input file name/path, in quotes,
   and `{o}` is replaced by the output file in the same way.
-  This command is ran at in the `__BUILD_DIR__/__FILENAME_ID__/` directory, so it may create files.
+  This command is ran at in the _BUILD_DIR_/_FILENAME_ID_/ directory, so it may create files.
 +
 An example of this: `--nasm "nasm -felf64 {i} -o {o}"`
 
 --gcc __GCC_COMMAND__::
-  __GCC_COMMAND__ is similar to the __NASM_COMMAND__, but instead is the object file-to-binary command.
+  _GCC_COMMAND_ is similar to the _NASM_COMMAND_, but instead is the object file-to-binary command.
   It is ran in the same place as the __NASM_COMMAND__.
   Nothing is done between the two commands, if they are both scheduled to run.
 +

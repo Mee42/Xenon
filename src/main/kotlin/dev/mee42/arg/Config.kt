@@ -110,6 +110,9 @@ fun parseConfig(args: List<String>): Config {
                         ?: error("can't find output format \"$rem\"")
                 format = opt
             }
+            token == "--run" -> {
+                format = OutputFormat.RUN
+            }
             token == "--out" -> outputBinary = queue.remove()
             token == "-t" || token == "--target" -> target = queue.remove()
             token == "--verbose, -v" -> sortaVerbose()
@@ -149,6 +152,9 @@ fun parseConfig(args: List<String>): Config {
                 } else {
                     optimizationsEnabled.add(option)
                 }
+            }
+            token.startsWith("-") -> {
+                error("unknown option \"$token\"")
             }
             else -> {
                 // considered the target

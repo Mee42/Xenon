@@ -458,13 +458,29 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_description">DESCRIPTION</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The xenon(1) command converts Xenon Source file <em>FILE</em> into NASM assembly, object files, or x64/x86 machine code.</p>
+<p>The xenon(1) command converts Xenon Source file <em>FILE</em> into NASM assembly, object files, or x64/x86 machine code.
+Single-character options <em>cannot</em> be combined into the same block, ie <code>-fe</code>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_options">OPTIONS</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_generic_options">Generic Options</h3>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">-V, --version</dt>
+<dd>
+<p>Print the version of the xenon compiler</p>
+</dd>
+<dt class="hdlist1">-h, --help</dt>
+<dd>
+<p>Print this help menu</p>
+</dd>
+</dl>
+</div>
+</div>
 <div class="sect2">
 <h3 id="_compiler_options">Compiler Options</h3>
 <div class="dlist">
@@ -495,7 +511,7 @@ Nothing is done between the two commands, if they are both scheduled to run.</p>
 <p>As an example, <code>--gcc "gcc {i} -no-pie -o {o}"</code></p>
 </div>
 </dd>
-<dt class="hdlist1">-b <em>BUILD_DIR</em>, --build __BUILD_DIR</dt>
+<dt class="hdlist1">-b <em>BUILD_DIR</em>, --build <em>BUILD_DIR</em></dt>
 <dd>
 <p>The directory to put intermediate build files into.</p>
 <div class="paragraph">
@@ -503,6 +519,11 @@ Nothing is done between the two commands, if they are both scheduled to run.</p>
 For each file, a directory is created with the name plus a tiny hashcode.
 Inside that directory the source file, object file, and binary file are placed.</p>
 </div>
+</dd>
+<dt class="hdlist1">-t <em>TARGET</em>, --target <em>TARGET</em></dt>
+<dd>
+<p>Where the resulting final binary should be named.
+Defaults to a reasonable value.</p>
 </dd>
 </dl>
 </div>
@@ -528,6 +549,11 @@ See above for options.</p>
 If <em>N</em> is an integer between 1 and 10 inclusive,
 the default optimization settings are enabled and the optimizer is ran <em>N</em>
 passes over the AST.</p>
+<div class="paragraph">
+<p><em>N</em>=3 is recommended for general development,
+<em>N</em>=10 for release,
+and <em>N</em>=0 for debugging the compiler.</p>
+</div>
 </dd>
 </dl>
 </div>
@@ -598,7 +624,7 @@ passes over the AST.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-04-07 12:35:11 -0400
+Last updated 2020-04-14 14:58:16 -0400
 </div>
 </div>
 </body>
