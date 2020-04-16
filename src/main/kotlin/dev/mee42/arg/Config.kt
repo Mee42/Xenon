@@ -98,8 +98,9 @@ fun parseConfig(args: List<String>): Config {
             token == "" -> {}
             token == "--help" -> {
                 // execute man xenon, and return
-                println("[help menu, todo]")
-                exitProcess(0)
+                val pb = ProcessBuilder("man", "xenon")
+                pb.inheritIO()
+                exitProcess(pb.start().waitFor())
             }
             token == "--nasm" -> nasmCommand = queue.remove()
             token == "--gcc" -> gccCommand = queue.remove()
