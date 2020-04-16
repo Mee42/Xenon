@@ -3,32 +3,16 @@
 Xenon is a language that is similar to C.
 It compiles to basic assembly, which can be assembled to x64 instructions.
 
-Code will run through a pipeline consisting of a:
-
-[horizontal]
-
-Preprocessor:: Think ``#define``s in C - runs before any lexing/parsing.
-Lexer:: Take the source and create a list of tokens.
-Parser Pass 1:: Parses an `InitialAST` that has everything but function bodies parsed.
-Parser Pass 2:: Take the `InitialAST` and assemble a full AST. This also does type checking.
-Optimizer:: Optimize said AST to avoid doing dumb stuff.
-Assembler:: Tke the AST and turn it into assembly. Note that the assembler also contains an optimizer
-Nasm Assembler:: Take an asm file and turns it into x64.
-
-Of all of these, the only one which will not be custom-made is the nasm assembler.
-This is a design choice made to make this language more debuggable,
-and could change once the project is more developed.
-
-Different "pipes" will be kept in different packages: `xpp` (the preprocessor) ,`lexer`, `parser`, `opt` (optimizer), and `asm` (the assembler)
+Some helpful Links: link:help[man pages]. link:resources[Resources]
 
 == Language Design
 
 This language will look similar to C.
 At the top level, there will be a list functions. Functions look like this:
 
-[source,c]
+[source,xenon]
 ----
-function @pure get(uint i, int* array) int {
+@foo int get(int i, int* array) {
     return *(array + i);
 }
 ----
@@ -36,13 +20,11 @@ function @pure get(uint i, int* array) int {
 
 Here are how functions are defined:
 
-. Functions are always started with the keyword `function`.
-. All function attributes (attributes are prefixed with an `@`).
+. Functions are always started with their return type (`int`), precluded with any function annotations (`@foo`)
 . The name of the function, which must start with a lowercase letter.
 . A list of arguments. Each has:
-.. A type. In this example, it is `uint` and `int*`
-.. The name of the argument
-. The return type of the function, here `int`.
+.. A type. In this example, there is `int` and `int*`. `int*` is a mutable pointer to an int.
+.. The name of the argument.
 . A block of code in brackets.
 
 === Expressions
@@ -55,34 +37,33 @@ Expressions follow a couple simple rules.
 ie `foo`
 * Any operator between two expressions,
 ie `foo + bar`
-** This includes the `.` operator, which is for member values
+** This includes the `.` operator, which is for member values, such like `foo.bar`
 * Parentheses with optional expressions comma-delimited in them,
 ie `foo()`, `bar(a, b, c)`
 * A asterisk before any expression that has a pointer type,
-ie `\*array`, `*(array + 7)`. This is a dereference
+ie `\*array`, `*(array + 7)`. This is a dereference.
 
 Assignments are statements, not expressions.
 Assignments can be one of these:
 
 [source, xenon]
 ----
-val a = foo // this is immutable
-var b = foo // this is mutable
-a = bar     // this is not allowed, as a is immutable
-b = bar     // this is allowed, as b is mutable
+val a     = 1 // this is immutable
+mut val b = 1 // this is mutable
+a = 7     // this is not allowed, as a is immutable
+b = 7     // this is allowed, as b is mutable
 ----
 
 When something is mutable, it means the local variable can be changed.
 The value at the pointer has no such guarantee.
 
-Type can be strictly enforced by using type annotations on variables.
+Type can be strictly enforced by using the type in place of `val`.
 [source, xenon]
 ----
-val x <int64> = 10
-val y <ubyte> = 42
-val z <int32> = x // this will error, because x is not an int32
+int64 x     = 10
+mut ubyte y = 42 // this value is mutable
+int32 z     = x  // this will error, because x is not an int32
 ----
-
 
 If you wish to set something at the address of a pointer, you must use the `*` operator.
 
@@ -90,7 +71,7 @@ If you wish to set something at the address of a pointer, you must use the `*` o
 ----
 *array = 2
 *(array + 1) = 3
-val array <int**> = someFunction()
+int** array = someFunction()
 *(*array) = 5
 // or
 **array = 5
@@ -102,50 +83,6 @@ Assignments are _not_ expressions, meaning that `a = b = 7` will not compile.
 
 Identifiers that start with `_` are inserted by the compiler and are not allowed in the source code.
 
-== Compiling to Assembly
-
-Each function is defined with a label equal to it's name,
-plus a function identifier, a non-empty string that distinguish functions with the same name
-
-Here is an example function:
-
-[source, xenon]
-----
-function double(int64 x) int64 {
-    return x + x;
-}
-----
-As of git commit `897f86f`, This will compile to (comments inserted by the compiler):
-[source, assembly]
-----
-double1: ; return value in register rax
-    ; argument 0 (x) in register QWORD [rbp + 16]
-    push rbp
-    mov rbp, rsp
-    sub rsp, QWORD 0
-    mov rax, [rbp + 16] ; pulling variable x
-    push rax
-    mov rax, [rbp + 16] ; pulling variable x
-    pop rbx
-    add rax, rbx
-    add rsp, QWORD 0
-    pop rbp
-    ret
-    nop
-----
-This is pretty poorly optimized. The entire function could be condensed into
-[soure, assembly]
-----
-double1
-    push rbp
-    mov rax, [rsp + 16]
-    add rax, rax
-    pop rbp
-    ret
-----
-So, more work will need to be done for optimization.
-
-
 == Current Issues
 
 There are many things that you should be able to do that will crash with a NotImplementedException.
@@ -153,4 +90,15 @@ Because writing these down will lead to them being quickly outdated,
 I'm only going to document shortcomings that will *not* crash the compiler.
 
 * Functions are not checked to make sure they return, nor is the return type checked.
-If functions do not return, the program will execute random instructions.
+If functions do not return, the program will execute random instructions, and probably segfault.
+
+== Future plans
+
+* Structs
+* Immutable and mutable pointer types.
+**  The idea being that `int+` is an immutable int pointer, and `int*` is a mutable int pointer.
+    Though, being an immutable pointer does not mean the value is constant
+    (as this would have very limited use),
+    it instead just means the holder of the pointer is not allowed - and won't, ever - write to it.
+    There will be no way to cast an `int+` to an `int*` without an `@unsafeImmutablePointer` attribute
+    on the function.

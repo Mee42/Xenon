@@ -448,75 +448,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 It compiles to basic assembly, which can be assembled to x64 instructions.</p>
 </div>
 <div class="paragraph">
-<p>Code will run through a pipeline consisting of a:</p>
-</div>
-<div class="hdlist">
-<table>
-<tr>
-<td class="hdlist1">
-Preprocessor
-</td>
-<td class="hdlist2">
-<p>Think <code>#define</code>s in C - runs before any lexing/parsing.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Lexer
-</td>
-<td class="hdlist2">
-<p>Take the source and create a list of tokens.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Parser Pass 1
-</td>
-<td class="hdlist2">
-<p>Parses an <code>InitialAST</code> that has everything but function bodies parsed.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Parser Pass 2
-</td>
-<td class="hdlist2">
-<p>Take the <code>InitialAST</code> and assemble a full AST. This also does type checking.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Optimizer
-</td>
-<td class="hdlist2">
-<p>Optimize said AST to avoid doing dumb stuff.</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Assembler
-</td>
-<td class="hdlist2">
-<p>Tke the AST and turn it into assembly. Note that the assembler also contains an optimizer</p>
-</td>
-</tr>
-<tr>
-<td class="hdlist1">
-Nasm Assembler
-</td>
-<td class="hdlist2">
-<p>Take an asm file and turns it into x64.</p>
-</td>
-</tr>
-</table>
-</div>
-<div class="paragraph">
-<p>Of all of these, the only one which will not be custom-made is the nasm assembler.
-This is a design choice made to make this language more debuggable,
-and could change once the project is more developed.</p>
-</div>
-<div class="paragraph">
-<p>Different "pipes" will be kept in different packages: <code>xpp</code> (the preprocessor) ,<code>lexer</code>, <code>parser</code>, <code>opt</code> (optimizer), and <code>asm</code> (the assembler)</p>
+<p>Some helpful Links: <a href="help">man pages</a>. <a href="resources">Resources</a></p>
 </div>
 </div>
 </div>
@@ -529,7 +461,7 @@ At the top level, there will be a list functions. Functions look like this:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-c" data-lang="c">function @pure get(uint i, int* array) int {
+<pre class="highlight"><code class="language-xenon" data-lang="xenon">@foo int get(int i, int* array) {
     return *(array + i);
 }</code></pre>
 </div>
@@ -540,10 +472,7 @@ At the top level, there will be a list functions. Functions look like this:</p>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Functions are always started with the keyword <code>function</code>.</p>
-</li>
-<li>
-<p>All function attributes (attributes are prefixed with an <code>@</code>).</p>
+<p>Functions are always started with their return type (<code>int</code>), precluded with any function annotations (<code>@foo</code>)</p>
 </li>
 <li>
 <p>The name of the function, which must start with a lowercase letter.</p>
@@ -553,16 +482,13 @@ At the top level, there will be a list functions. Functions look like this:</p>
 <div class="olist loweralpha">
 <ol class="loweralpha" type="a">
 <li>
-<p>A type. In this example, it is <code>uint</code> and <code>int*</code></p>
+<p>A type. In this example, there is <code>int</code> and <code>int*</code>. <code>int*</code> is a mutable pointer to an int.</p>
 </li>
 <li>
-<p>The name of the argument</p>
+<p>The name of the argument.</p>
 </li>
 </ol>
 </div>
-</li>
-<li>
-<p>The return type of the function, here <code>int</code>.</p>
 </li>
 <li>
 <p>A block of code in brackets.</p>
@@ -598,7 +524,7 @@ ie <code>foo + bar</code></p>
 <div class="ulist">
 <ul>
 <li>
-<p>This includes the <code>.</code> operator, which is for member values</p>
+<p>This includes the <code>.</code> operator, which is for member values, such like <code>foo.bar</code></p>
 </li>
 </ul>
 </div>
@@ -609,7 +535,7 @@ ie <code>foo()</code>, <code>bar(a, b, c)</code></p>
 </li>
 <li>
 <p>A asterisk before any expression that has a pointer type,
-ie <code>*array</code>, <code>*(array + 7)</code>. This is a dereference</p>
+ie <code>*array</code>, <code>*(array + 7)</code>. This is a dereference.</p>
 </li>
 </ul>
 </div>
@@ -619,10 +545,10 @@ Assignments can be one of these:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-xenon" data-lang="xenon">val a = foo // this is immutable
-var b = foo // this is mutable
-a = bar     // this is not allowed, as a is immutable
-b = bar     // this is allowed, as b is mutable</code></pre>
+<pre class="highlight"><code class="language-xenon" data-lang="xenon">val a     = 1 // this is immutable
+mut val b = 1 // this is mutable
+a = 7     // this is not allowed, as a is immutable
+b = 7     // this is allowed, as b is mutable</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -630,13 +556,13 @@ b = bar     // this is allowed, as b is mutable</code></pre>
 The value at the pointer has no such guarantee.</p>
 </div>
 <div class="paragraph">
-<p>Type can be strictly enforced by using type annotations on variables.</p>
+<p>Type can be strictly enforced by using the type in place of <code>val</code>.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-xenon" data-lang="xenon">val x &lt;int64&gt; = 10
-val y &lt;ubyte&gt; = 42
-val z &lt;int32&gt; = x // this will error, because x is not an int32</code></pre>
+<pre class="highlight"><code class="language-xenon" data-lang="xenon">int64 x     = 10
+mut ubyte y = 42 // this value is mutable
+int32 z     = x  // this will error, because x is not an int32</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -646,7 +572,7 @@ val z &lt;int32&gt; = x // this will error, because x is not an int32</code></pr
 <div class="content">
 <pre class="highlight"><code class="language-xenon" data-lang="xenon">*array = 2
 *(array + 1) = 3
-val array &lt;int**&gt; = someFunction()
+int** array = someFunction()
 *(*array) = 5
 // or
 **array = 5</code></pre>
@@ -666,62 +592,6 @@ val array &lt;int**&gt; = someFunction()
 </div>
 </div>
 <div class="sect1">
-<h2 id="_compiling_to_assembly">Compiling to Assembly</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Each function is defined with a label equal to it&#8217;s name,
-plus a function identifier, a non-empty string that distinguish functions with the same name</p>
-</div>
-<div class="paragraph">
-<p>Here is an example function:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-xenon" data-lang="xenon">function double(int64 x) int64 {
-    return x + x;
-}</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>As of git commit <code>897f86f</code>, This will compile to (comments inserted by the compiler):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-assembly" data-lang="assembly">double1: ; return value in register rax
-    ; argument 0 (x) in register QWORD [rbp + 16]
-    push rbp
-    mov rbp, rsp
-    sub rsp, QWORD 0
-    mov rax, [rbp + 16] ; pulling variable x
-    push rax
-    mov rax, [rbp + 16] ; pulling variable x
-    pop rbx
-    add rax, rbx
-    add rsp, QWORD 0
-    pop rbp
-    ret
-    nop</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>This is pretty poorly optimized. The entire function could be condensed into</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre>double1
-    push rbp
-    mov rax, [rsp + 16]
-    add rax, rax
-    pop rbp
-    ret</pre>
-</div>
-</div>
-<div class="paragraph">
-<p>So, more work will need to be done for optimization.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
 <h2 id="_current_issues">Current Issues</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -733,7 +603,34 @@ I&#8217;m only going to document shortcomings that will <strong>not</strong> cra
 <ul>
 <li>
 <p>Functions are not checked to make sure they return, nor is the return type checked.
-If functions do not return, the program will execute random instructions.</p>
+If functions do not return, the program will execute random instructions, and probably segfault.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_future_plans">Future plans</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Structs</p>
+</li>
+<li>
+<p>Immutable and mutable pointer types.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>The idea being that <code>int+</code> is an immutable int pointer, and <code>int*</code> is a mutable int pointer.
+Though, being an immutable pointer does not mean the value is constant
+(as this would have very limited use),
+it instead just means the holder of the pointer is not allowed - and won&#8217;t, ever - write to it.
+There will be no way to cast an <code>int+</code> to an <code>int*</code> without an <code>@unsafeImmutablePointer</code> attribute
+on the function.</p>
+</li>
+</ul>
+</div>
 </li>
 </ul>
 </div>
@@ -742,7 +639,7 @@ If functions do not return, the program will execute random instructions.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-03-27 13:22:26 -0400
+Last updated 2020-04-16 15:44:13 -0400
 </div>
 </div>
 </body>
