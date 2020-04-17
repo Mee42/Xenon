@@ -37,8 +37,6 @@ uninstall:
 	rm -rf /opt/xenon
 	rm -f /bin/xenon
 
-
-
 install: build/libs/xenon-v0.0.1-all.jar installManPages baseInstall
 
 

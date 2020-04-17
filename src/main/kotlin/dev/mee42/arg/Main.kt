@@ -29,6 +29,7 @@ fun main(args: Array<String>) {
 
     val preprocessed = time("preprocess") { preprocess(text, globalConfig.target) }
     val tokens = time("lexer") { lex(preprocessed) }
+    VerboseOption.TOKENS.println(tokens.joinToString(" ") { it.content })
     val initialAST = time("pass1") { parsePass1(tokens).withOther(stdLibDef) }
     val ast = time("pass2") { markPurity(parsePass2(initialAST)) }
     val optimizedAST = if (config.optimizerIterations == 0)

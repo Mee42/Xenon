@@ -1,6 +1,7 @@
 package dev.mee42.asm
 
 import dev.mee42.parser.*
+import java.lang.ref.Reference
 
 class DataEntry(val name: String, val data: List<Int>)
 
@@ -183,6 +184,10 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
     private fun assembleBlockExpression(expression: BlockExpression): Assembly = buildAssembly {
         this += assembleBlock(variableBindings, ast, accumulatorRegister, Block(expression.statements), topLocal, returnInstructions)
     }
+    private fun assemblyExpression(expression: RefExpression) = buildAssembly {
+        val variable = variableBindings.firstOrNull { it.name == expression.variableName } ?: error("can't find variable ${expression.variableName}")
+        this += AssemblyInstruction.Custom("lea rax, ${variable.register.toStringNoSize()}").comment("referencing variable ${variable.name}")
+    }
 
     fun assembleExpression(expression: Expression): Assembly {
         return when(expression) {
@@ -195,6 +200,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
             is StringLiteralExpression -> assembleExpression(expression)
             is BlockExpression -> assembleBlockExpression(expression)
             is TypelessBlock -> assemblyExpression(expression)
+            is RefExpression -> assemblyExpression(expression)
         }
     }
 

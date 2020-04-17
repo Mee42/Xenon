@@ -204,5 +204,6 @@ private fun Expression.optimize(state: State): Expression {
                 BlockExpression(statementsWithoutNop)
             }
         }
+        is RefExpression -> TODO()
     }
 }

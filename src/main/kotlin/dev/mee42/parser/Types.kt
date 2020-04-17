@@ -9,7 +9,8 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>, val
     INT32(RegisterSize.BIT32, -2147483648..2147483647,"int32","int"),
     INT64(RegisterSize.BIT64, ((-9223372036854775807L - 1L)..9223372036854775807L), "int64","long"),
 
-    UINT8(RegisterSize.BIT8,0..255, "uint8","ubyte","char", isUnsigned = true),
+    UINT8(RegisterSize.BIT8,0..255, "uint8","ubyte", isUnsigned = true),
+    CHAR(RegisterSize.BIT8, 0..255, "char", isUnsigned = true),
     UINT16(RegisterSize.BIT16, 0..65535, "uint16","ushort", isUnsigned = true),
     UINT32(RegisterSize.BIT32, 0..4294967295,"uint32","uint", isUnsigned = true),
     UINT64(RegisterSize.BIT64,0..9223372036854775807L, "uint64","ulong", isUnsigned = true),
@@ -30,4 +31,4 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>, val
 
 sealed class Type(val size: RegisterSize)
 data class BaseType(val type: TypeEnum): Type(type.registerSize)
-data class PointerType(val type: Type): Type(RegisterSize.BIT64)
+data class PointerType(val type: Type, val writeable: Boolean): Type(RegisterSize.BIT64)

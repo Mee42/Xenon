@@ -80,7 +80,7 @@ private class Reshuffler(val ast: AST) {
             EqualsExpression(var1.reshuffle(), var2.reshuffle(), negate)
         }
         is FunctionCallExpression -> FunctionCallExpression(arguments.map { it.reshuffle() }, argumentNames, functionIdentifier, returnType)
-
+        is RefExpression -> TODO()
     } }
 
     fun Statement.isPure(): Boolean = when (this) {
@@ -106,6 +106,7 @@ private class Reshuffler(val ast: AST) {
         is FunctionCallExpression -> ast.functions.first { it.identifier == functionIdentifier }.verifiedPure
                 && arguments.all { it.isPure() }
         is TypelessBlock -> expressions.all { it.isPure() }
+        is RefExpression -> TODO()
     }
     /** this should be called when the result value is unimportant, but the things still need to be ran
      * return value of null means it's not needed and can be safely discarded. All other expressions returned are important
@@ -153,6 +154,7 @@ private class Reshuffler(val ast: AST) {
                 val exprs = expressions.mapNotNull { it.purify() }
                 if(exprs.isEmpty()) null else TypelessBlock(exprs)
             }
+            is RefExpression -> TODO()
         }
     }
 }

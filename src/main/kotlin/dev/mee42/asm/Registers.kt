@@ -57,6 +57,14 @@ open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean, 
         // offset < 0
         return "${size.asmName} [$register - ${-1 * offset}]"
     }
+    fun toStringNoSize(): String {
+        return when {
+            !isMemory -> register.toString()
+            offset == 0 -> "[$register]"
+            offset > 0 -> "[$register + $offset]"
+            else -> "[$register - ${-1 * offset}]"
+        }
+    }
 
     override fun equals(other: Any?): Boolean {
 //        if(other is StaticValueAdvancedRegister) return false

@@ -81,6 +81,7 @@ fun inlineMacros(expression: Expression, ast: AST): Expression {
                 statements = expression.statements.map { inlineMacros(it, ast) }
         )
         is TypelessBlock -> TypelessBlock(expression.expressions.map { inlineMacros(it,ast) })
+        is RefExpression -> TODO()
     }
 }
 

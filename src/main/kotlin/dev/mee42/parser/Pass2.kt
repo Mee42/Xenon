@@ -164,7 +164,12 @@ private fun parseExpression(tokens: TokenQueue,  initialAST: InitialAST, localVa
                     .replace("\\n","\n")
                     .replace("\\t","\t"))
         }
-
+        REF -> {
+            val variableName = tokens.remove().checkType(IDENTIFIER, "can only ref a variable").content
+            val variable = localVariables.firstOrNull { it.name == variableName }
+                    ?: throw ParseException("can't find variable \"$variableName\"", first)
+            checkForOperator(RefExpression(variableName, variable.type, variableMutable = !variable.isFinal))
+        }
         else -> TODO("can't support expressions that start with type ${first.type}")
     }
 }
@@ -207,6 +212,7 @@ private fun parseStatement(tokens: TokenQueue, initialAST: InitialAST, localVari
             if(ptr.type !is PointerType) throw ParseException("pointer value needs to be of type pointer")
             val pointerValue = ptr.type as PointerType
             if(pointerValue.type != value.type) throw ParseException("expecting value of type ${pointerValue.type}, got ${value.type}", equals)
+            if(!pointerValue.writeable) throw ParseException("can't write to a read-only pointer", equals)
             MemoryWriteStatement(ptr, value)
         }
         WHILE_KEYWORD -> {
@@ -239,7 +245,7 @@ private fun parseStatement(tokens: TokenQueue, initialAST: InitialAST, localVari
                         expression = expression
                 )
             } else if(firstToken.content in initialAST.structs.map { it.name }.plus(TypeEnum.values().flatMap { it.names })) {
-                val firstTokens = listOf(firstToken) + tokens.removeWhile { it.type != OPERATOR}
+                val firstTokens = listOf(firstToken) + tokens.removeWhile { it.type != OPERATOR || it.content == "+" }
                 val identifier = firstTokens.last()
                 val type = parseType(firstTokens.dropLast(1), identifier)
                 val nextToken = tokens.remove()
@@ -247,7 +253,7 @@ private fun parseStatement(tokens: TokenQueue, initialAST: InitialAST, localVari
                     throw ParseException("expecting an equal sign", nextToken)
                 }
                 val expression = parseExpression(tokens, initialAST, localVariables)
-                if(expression.type != type) {
+                if(!willTypeFit(expression.type, type)) {
                     throw ParseException("mismatched types: expecting $type but got ${expression.type}",nextToken)
                 }
                 DeclareVariableStatement(

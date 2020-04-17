@@ -108,6 +108,7 @@ private fun Expression.purity(): FunctionLink {
         is EqualsExpression -> var1.purity().combine(var2.purity())
         is FunctionCallExpression -> PossiblyPure(listOf(this.functionIdentifier))
                 .combine(arguments.map { it.purity() }.fold())
+        is RefExpression -> Impure
     }
 }
 private fun Statement.purity(): FunctionLink {

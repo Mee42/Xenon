@@ -483,10 +483,10 @@ data class CompiledFunction(
 }
 
 fun type(str: String): Type {
-    return if(str.endsWith("*")){
-        PointerType(type(str.dropLast(1)))
-    } else {
-        BaseType(TypeEnum.of(str))
+    return when {
+        str.endsWith("*") -> PointerType(type(str.dropLast(1)), true)
+        str.endsWith("+") -> PointerType(type(str.dropLast(1)), false)
+        else -> BaseType(TypeEnum.of(str))
     }
 }
 fun String.arg(type: String) = Argument(this, type(type))

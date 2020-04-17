@@ -23,6 +23,7 @@ class DeadCodeElimination {
         is FunctionCallExpression -> expression.arguments.flatMap(::variablesUsed)
         is BlockExpression -> expression.statements.flatMap(::variablesUsed)
         is TypelessBlock -> expression.expressions.flatMap(::variablesUsed)
+        is RefExpression -> TODO()
     }
 
     private fun variablesUsed(statement: Statement): List<String> = when(statement) {
@@ -54,6 +55,7 @@ class DeadCodeElimination {
             is EqualsExpression -> EqualsExpression(var1.optimize(), var2.optimize(), negate)
             is FunctionCallExpression -> FunctionCallExpression(arguments.map { it.optimize() }, argumentNames, functionIdentifier, returnType)
             is TypelessBlock -> TypelessBlock(expressions.map { it.optimize() })
+            is RefExpression -> TODO()
         }
     }
     private fun Statement.optimize(): Statement {
@@ -102,6 +104,7 @@ class DeadCodeElimination {
             )
         }
         is TypelessBlock -> TypelessBlock(expressions.map { it.inlineImpure(variable, name) })
+        is RefExpression -> TODO()
     }
 
 

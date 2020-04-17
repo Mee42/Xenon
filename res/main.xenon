@@ -1,7 +1,10 @@
-//#lib res/stdlib.xenon
 
-int main() {   // bytes
-	mut val i = 0
-	println(i)
+
+int main() {
+	int x = 7 // imutable
+    mut int i = 8 // mutable
+    val ptr = &i 
+    *(&i + 1) = 15 + *ptr
+	println(x)
 	return 0
 }

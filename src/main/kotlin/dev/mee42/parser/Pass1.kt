@@ -83,8 +83,8 @@ private fun parseArgument(tokens: List<Token>): Argument {
 
 fun parseType(tokens: List<Token>, nearbyToken: Token): Type {
     if(tokens.isEmpty()) throw ParseException("Can't find type", nearbyToken)
-    if(tokens.last().type == TokenType.ASTERISK) {
-        return PointerType(parseType(tokens.dropLast(1), tokens.last()))
+    if(tokens.last().content in listOf("*","+")){
+        return PointerType(parseType(tokens.dropLast(1), tokens.last()), tokens.last().type == TokenType.ASTERISK)
     }
     if(tokens.size > 1) throw ParseException("idk what you want, crashing", nearbyToken)
     val identifier = tokens[0]
