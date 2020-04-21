@@ -5,7 +5,21 @@ import dev.mee42.parser.*
 private typealias Indent = String
 fun Indent.more(): Indent = "$this    "
 
-fun decompileFunction(function: XenonFunction): String {
+fun AST.decompile(name: String = "ast"): String {
+    return "---- $name ---- \n" + this.structs.joinToString("\n", "", "", transform = ::decomp) +
+            "\n\n" +
+            functions.joinToString("", "", "") {
+                if (it is XenonFunction) decompileFunction(it) + "\n" else ""
+            } + "\n---- end $name ----"
+}
+
+fun decomp(it: Struct): String {
+    return "struct ${it.name} " +
+            it.fields.joinToString("\n","{\n","\n}") { "    " + decompile(it.type) + " " + it.name + ";" } +
+            " (" + it.size.bytes + " bytes)"
+}
+
+private fun decompileFunction(function: XenonFunction): String {
     var s = ""
     s += function.attributes.joinToString(" ", "", "")
     s += " " + decompile(function.returnType)
@@ -28,12 +42,6 @@ fun decompileBlock(block: Block, indent: Indent, lastIndent: Indent): String {
                 (if (statement.final) "" else "mut ") +
                         decompile(statement.expression.type) + " " + statement.variableName + " = " + decompile(statement.expression, indent) + ";\n"
             }
-            is AssignVariableStatement -> {
-                statement.variableName + " = " + decompile(statement.expression, indent) + ";\n"
-            }
-            is MemoryWriteStatement -> {
-                "*(" + decompile(statement.location, indent) + ") = " + decompile(statement.value, indent) + ";\n"
-            }
             is IfStatement -> {
                 "if " + decompile(statement.conditional, indent) + " " + decompileBlock(statement.block, indent.more(), indent) + ";\n"
             }
@@ -47,9 +55,11 @@ fun decompileBlock(block: Block, indent: Indent, lastIndent: Indent): String {
 
 
 fun decompile(type: Type): String {
-    if(type is PointerType) return decompile(type.type) + "*"
-    if(type is BaseType) return type.type.names.first()
-    error("idk")
+    return when (type) {
+        is PointerType -> decompile(type.type) + "*"
+        is BaseType -> type.type.names.first()
+        is StructType -> type.struct.name
+    }
 }
 
 fun decompile(expression: Expression, indent: Indent): String {
@@ -59,13 +69,12 @@ fun decompile(expression: Expression, indent: Indent): String {
         is DereferencePointerExpression -> "*(" + decompile(expression.pointerExpression, indent) + ")"
         is IntegerValueExpression -> expression.value.toString()
         is StringLiteralExpression -> '"' + expression.value.replace("\n","\\n") + '"'
-        is MathExpression -> "(" + decompile(expression.var1, indent) + ") " + expression.mathType.symbol +
-                " (" + decompile(expression.var2, indent) + ")"
-        is EqualsExpression -> "(" + decompile(expression.var1, indent) + ") " + (if(expression.negate) "!=" else "==") +
+        is ComparisonExpression -> "(" + decompile(expression.var1, indent) + ") " + expression.mathType.symbol +
                 " (" + decompile(expression.var2, indent) + ")"
         is FunctionCallExpression -> expression.functionIdentifier +
                 expression.arguments.joinToString(", ", "(",")") { decompile(it, indent) }
         is TypelessBlock -> "t{" + expression.expressions.joinToString(", ", "","") { decompile(it, indent.more()) } + "}"
-        is RefExpression -> "&${expression.variableName}"
+        is RefExpression -> "&${decompile(expression, indent.more())}"
+        is AssigmentExpression -> decompile(expression.setLocation, indent.more()) + " = " + decompile(expression.value, indent.more())
     }
 }

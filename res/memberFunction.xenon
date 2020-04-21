@@ -1,0 +1,21 @@
+@member int incr(int* self) {
+    *self = (*self) + 1
+    return *self
+}
+@member int a(int x) {
+    return x + 70
+}
+@member int b(int x) {
+    return x + 900
+}
+
+
+int main() {
+    //mut int i = 8 // mutable
+    mut int foo = 3
+    //&i.incr()
+    //println(i)
+    foo = foo.b().a()
+    println(foo)
+	return 0
+}

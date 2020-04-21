@@ -62,7 +62,7 @@ private val optimizations = optimizationSuite {
     }
     peephole {
         size = 2
-        enabled = true
+        enabled = false // TODO make this work with variable set propegation
         name = "merge double mov"
         runner { (a,b) ->
             if(a !is Mov) return@runner null

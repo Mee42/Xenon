@@ -1,6 +1,7 @@
 package dev.mee42.parser
 
 import dev.mee42.asm.RegisterSize
+import dev.mee42.asm.ValueSize
 
 
 enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>, val isUnsigned: Boolean,val numberRange: LongRange) {
@@ -29,6 +30,16 @@ enum class TypeEnum(val registerSize: RegisterSize, val names: List<String>, val
     }
 }
 
-sealed class Type(val size: RegisterSize)
-data class BaseType(val type: TypeEnum): Type(type.registerSize)
-data class PointerType(val type: Type, val writeable: Boolean): Type(RegisterSize.BIT64)
+sealed class Type {
+    abstract val size: ValueSize
+}
+data class BaseType(val type: TypeEnum): Type() {
+    override val size: ValueSize = type.registerSize.size
+}
+data class StructType(val struct: Struct): Type() {
+    override val size: ValueSize
+        get() = struct.size
+}
+data class PointerType(val type: Type, val writeable: Boolean): Type() {
+    override val size: ValueSize = RegisterSize.BIT64.size
+}

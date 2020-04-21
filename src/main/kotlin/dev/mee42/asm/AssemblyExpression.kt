@@ -39,16 +39,18 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
                                     val ast: AST,
                                     val accumulatorRegister: Register,
                                     val topLocal: Int,
-                                    val returnInstructions: List<AssemblyInstruction>) {
+                                    val returnInstructions: List<AssemblyInstruction>
+)
+{
 
-    private fun assembleExpression(expression: MathExpression): Assembly = buildAssembly {
+    private fun assembleExpression(expression: ComparisonExpression): Assembly = buildAssembly {
         this += assembleExpression(expression.var1)
         this += AssemblyInstruction.Push(accumulatorRegister)
         this += assembleExpression(expression.var2)
+        val size = expression.type.size.fitToRegister()
         when(expression.mathType) {
             MathType.ADD -> {
                 this += AssemblyInstruction.Pop(Register.B)
-
                 if(expression.type is PointerType) {
                     val addMultiplier = expression.type.type.size.bytes
                     val shift = when(addMultiplier) {
@@ -59,29 +61,29 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
                         else -> error("can't support things of that size yet")
                     }
                     if(shift != 0) {
-                        this += AssemblyInstruction.Shl(SizedRegister(expression.type.type.size,accumulatorRegister), shift)
+                        this += AssemblyInstruction.Shl(SizedRegister(size,accumulatorRegister), shift)
                     }
                 }
                 this += AssemblyInstruction.Add(
-                    reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
-                    reg2 = SizedRegister(expression.type.size, Register.B).advanced()
+                    reg1 = SizedRegister(size, accumulatorRegister).advanced(),
+                    reg2 = SizedRegister(size, Register.B).advanced()
                 )
             }
             MathType.SUB -> {
                 this += AssemblyInstruction.Mov(
                     reg1 = Register.B,
                     reg2 = Register.A,
-                    size = expression.type.size
+                    size = size
                 ).zeroIfNeeded()
                 this += AssemblyInstruction.Pop(Register.A)
                 this += AssemblyInstruction.Sub(
-                    reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
-                    reg2 = SizedRegister(expression.type.size, Register.B).advanced()
+                    reg1 = SizedRegister(size, accumulatorRegister).advanced(),
+                    reg2 = SizedRegister(size, Register.B).advanced()
                 )
             }
             MathType.MULT -> {
                 this += AssemblyInstruction.Pop(Register.B)
-                this += AssemblyInstruction.Mul(reg1 = SizedRegister(expression.type.size, Register.B).advanced())
+                this += AssemblyInstruction.Mul(reg1 = SizedRegister(size, Register.B).advanced())
             }
             MathType.DIV -> {
                 this += AssemblyInstruction.Xor(
@@ -89,7 +91,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
                     reg2 = SizedRegister(RegisterSize.BIT64, Register.D).advanced())
                 val type = expression.type
                 type as? BaseType ?: error("debug this later")
-                if(expression.type.size == RegisterSize.BIT8) {
+                if(size == RegisterSize.BIT8) {
                     if(type.type.isUnsigned) {
                         this += AssemblyInstruction.MovZX(
                             reg1 = SizedRegister(RegisterSize.BIT16, Register.B),
@@ -102,18 +104,19 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
                         )
                     }
                 } else {
-                    this += AssemblyInstruction.Mov(reg1 = Register.B, reg2 = Register.A, size = expression.type.size)
+                    this += AssemblyInstruction.Mov(reg1 = Register.B, reg2 = Register.A, size = size)
                 }
                 this += AssemblyInstruction.Pop(Register.A)
                 this += AssemblyInstruction.divOf(
-                    size = type.size,
+                    size = size,
                     signed = !type.type.isUnsigned,
-                    divisor = SizedRegister(type.size, Register.B))
+                    divisor = SizedRegister(size, Register.B))
             }
+            MathType.EQUALS -> TODO()
+            MathType.NOT_EQUALS -> TODO()
         }
 
     }
-
 
     private fun assembleExpression(expression: VariableAccessExpression): Assembly = buildAssembly {
         val variable = variableBindings.firstOrNull { it.name == expression.variableName } ?: error("can't find variable ${expression.variableName}")
@@ -123,17 +126,6 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
         ).comment( "pulling variable ${expression.variableName}")
     }
 
-    private fun assembleExpression(expression: DereferencePointerExpression): Assembly = buildAssembly {
-        if(expression.pointerExpression.type !is PointerType) error("assertion failed")
-        this += assembleExpression(expression.pointerExpression)
-        this += AssemblyInstruction.Mov(
-            reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
-            reg2 = AdvancedRegister(
-                register = SizedRegister(RegisterSize.BIT64,  accumulatorRegister),
-                isMemory = true,
-                size = expression.type.size)
-        )
-    }
 
     private fun assembleExpression(expression: FunctionCallExpression): Assembly = buildAssembly {
         // pretty much, just push all the arguments, call the function, then clean the stack
@@ -142,7 +134,7 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
         expression.arguments.forEachIndexed { i,expr ->
             // evaluate and put the value in the register
             this += assembleExpression(expr)
-            this += AssemblyInstruction.Push(accumulatorRegister).comment("argument ${expression.argumentNames[i]}")
+            this += AssemblyInstruction.Push(accumulatorRegister).comment("argument $i")
         }
         // alright, everything is in the right registers
         this += AssemblyInstruction.Call(expression.functionIdentifier)
@@ -154,12 +146,12 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
 
     private fun assembleExpression(expression: IntegerValueExpression): Assembly = buildAssembly {
         this += AssemblyInstruction.Mov(
-            reg1 = SizedRegister(expression.type.size, accumulatorRegister).advanced(),
-            reg2 = StaticValueAdvancedRegister(expression.value, expression.type.size)
+            reg1 = SizedRegister(expression.type.size.fitToRegister(), accumulatorRegister).advanced(),
+            reg2 = StaticValueAdvancedRegister(expression.value, expression.type.size.fitToRegister())
         )
     }
 
-    private fun assembleExpression(expression: EqualsExpression): Assembly = buildAssembly {
+    /*private fun assembleExpression(expression: EqualsExpression): Assembly = buildAssembly {
         // just like the math expression
         // order is agnostic, so let's do this the normal way
         if(expression.var1.type.size != expression.var2.type.size) error("uh, can't do that")
@@ -172,7 +164,8 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
             SizedRegister(expression.var2.type.size, Register.B).advanced()
         )
         this += AssemblyInstruction.SetCC(if(expression.negate) ComparisonOperator.NOT_EQUALS else ComparisonOperator.EQUALS, accumulatorRegister)
-    }
+    }*/
+
     private fun assembleExpression(expression: StringLiteralExpression): Assembly = buildAssembly {
         val (label, dataEntry) = StringInterner.labelString(expression.value)
         if(dataEntry != null) {
@@ -184,23 +177,71 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
     private fun assembleBlockExpression(expression: BlockExpression): Assembly = buildAssembly {
         this += assembleBlock(variableBindings, ast, accumulatorRegister, Block(expression.statements), topLocal, returnInstructions)
     }
+
+
+    // deref
+    // int x = *foo
+    private fun assembleExpression(expression: DereferencePointerExpression): Assembly = buildAssembly {
+        if(expression.pointerExpression.type !is PointerType) error("assertion failed")
+        this += assembleExpression(expression.pointerExpression)
+        this += AssemblyInstruction.Mov(
+                reg1 = SizedRegister(expression.type.size.fitToRegister(), accumulatorRegister).advanced(),
+                reg2 = AdvancedRegister(
+                        register = SizedRegister(RegisterSize.BIT64,  accumulatorRegister),
+                        isMemory = true,
+                        size = expression.type.size.fitToRegister())
+        )
+    }
+    // ref is
+    // int* x = &foo
     private fun assemblyExpression(expression: RefExpression) = buildAssembly {
-        val variable = variableBindings.firstOrNull { it.name == expression.variableName } ?: error("can't find variable ${expression.variableName}")
-        this += AssemblyInstruction.Custom("lea rax, ${variable.register.toStringNoSize()}").comment("referencing variable ${variable.name}")
+        when(expression.lvalue) {
+            is VariableAccessExpression -> {
+                // *foo
+                val variable = variableBindings.first { it.name == expression.lvalue.variableName }
+                this += AssemblyInstruction.Custom("lea rax, ${variable.register.toStringNoSize()}").comment("referencing variable ${variable.name}")
+            }
+            is DereferencePointerExpression -> {
+                // so for example,  &*(x + 1)
+                // becasue somehow this is an lvalue
+                this += assembleExpression(expression.lvalue.pointerExpression)
+            }
+        }
+    }
+
+    // possibly things:
+    // foo = 7
+    // *[expr] = 7
+    // *foo = 7
+
+    private fun assembleExpression(expression: AssigmentExpression) = buildAssembly {
+        when(expression.setLocation) {
+            is VariableAccessExpression -> {
+                this += AssemblyInstruction.Comment("variable access S")
+                val variable = variableBindings.first { it.name == expression.setLocation.variableName }
+                this += assembleExpression(expression.value)
+                this += AssemblyInstruction.Mov(
+                        reg1 = variable.register,
+                        reg2 = SizedRegister(expression.type.size.fitToRegister(), accumulatorRegister).advanced()
+                )
+                this += AssemblyInstruction.Comment("variable access E")
+            }
+            is DereferencePointerExpression -> TODO()
+        }
     }
 
     fun assembleExpression(expression: Expression): Assembly {
         return when(expression) {
-            is MathExpression -> assembleExpression(expression)
+            is ComparisonExpression -> assembleExpression(expression)
             is VariableAccessExpression -> assembleExpression(expression)
             is DereferencePointerExpression -> assembleExpression(expression)
             is FunctionCallExpression -> assembleExpression(expression)
             is IntegerValueExpression -> assembleExpression(expression)
-            is EqualsExpression -> assembleExpression(expression)
             is StringLiteralExpression -> assembleExpression(expression)
             is BlockExpression -> assembleBlockExpression(expression)
             is TypelessBlock -> assemblyExpression(expression)
             is RefExpression -> assemblyExpression(expression)
+            is AssigmentExpression -> assembleExpression(expression)
         }
     }
 

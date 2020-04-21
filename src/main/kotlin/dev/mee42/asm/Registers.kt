@@ -2,12 +2,15 @@ package dev.mee42.asm
 
 import dev.mee42.asm.RegisterSize.*
 
+class ValueSize(val bytes: Int) {
+    val canFitInRegister = bytes <= 8
+}
 
-enum class RegisterSize(val bytes: Int, val asmName: String) {
-    BIT64(8, "QWORD"),
-    BIT32(4, "DWORD"),
-    BIT16(2, "WORD"),
-    BIT8(1, "BYTE"),
+enum class RegisterSize(val size: ValueSize, val asmName: String) {
+    BIT64(ValueSize(8), "QWORD"),
+    BIT32(ValueSize(4), "DWORD"),
+    BIT16(ValueSize(2), "WORD"),
+    BIT8(ValueSize(1), "BYTE")
 }
 
 enum class Register(val bit64: String, val bit32: String, val bit16: String, val bit8: String) {
@@ -49,12 +52,12 @@ class StaticValueAdvancedRegister(val value: Long, size: RegisterSize): Advanced
     }
     constructor(value: Int, size: RegisterSize): this(value.toLong(), size)
 }
+
 open class AdvancedRegister(val register: SizedRegister, val isMemory: Boolean,  val size: RegisterSize, val offset: Int = 0) {
     override fun toString(): String {
         if(!isMemory) return register.toString()
         if(offset == 0) return "${size.asmName} [$register]"
         if(offset > 0) return "${size.asmName} [$register + $offset]"
-        // offset < 0
         return "${size.asmName} [$register - ${-1 * offset}]"
     }
     fun toStringNoSize(): String {

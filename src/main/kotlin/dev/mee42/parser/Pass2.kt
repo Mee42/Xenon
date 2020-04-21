@@ -4,7 +4,7 @@ import dev.mee42.InternalCompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.lexer.TokenType.*
-import dev.mee42.parser.TypeEnum.*
+import dev.mee42.type
 import java.util.*
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
@@ -12,7 +12,7 @@ private data class LocalVariable(val name: String, val type: Type, val isFinal: 
 fun parsePass2(initialAST: InitialAST): AST {
     // this does all the type checking. After this, no more token manipulation should be needed
     val functions = initialAST.functions.map { parseFunction(it, initialAST) }
-    return AST(functions = functions)
+    return AST(functions = functions, structs = initialAST.structs)
 }
 
 private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function {
@@ -27,261 +27,302 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     }
     // this is a block, it has both the open and close brackets as tokens
     val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = false) }
-    val block = parseBlock(TokenQueue(ArrayDeque(it.content)), initialAST, arguments)
+    val block = parseBlock(parsePartBlock(TokenQueue(ArrayDeque(it.content)), initialAST), arguments, initialAST)
     return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes)
 }
+
 /** this assumes that tokens starts with a { and ends the block with a } */
-private fun parseBlock(tokens: TokenQueue, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
-    tokens.remove().checkType(OPEN_BRACKET,"parseBlock expects token stream to start with an opening bracket")
-    val statements = mutableListOf<Statement>()
+//private fun parseBlock(tokens: TokenQueue, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
+//    tokens.remove().checkType(OPEN_BRACKET,"parseBlock expects token stream to start with an opening bracket")
+//    val statements = mutableListOf<Statement>()
+//    val scopedLocalVariables = mutableListOf<LocalVariable>()
+//    while(tokens.peek().type != CLOSE_BRACKET) {
+//        val statement = parseStatement(tokens, initialAST, localVariables + scopedLocalVariables)
+//        if(statement is DeclareVariableStatement){
+//            scopedLocalVariables.add(LocalVariable(
+//                name = statement.variableName,
+//                type = statement.expression.type,
+//                isFinal = statement.final
+//            ))
+//        }
+//        statements.add(statement)
+//    }
+//    tokens.remove().checkType(CLOSE_BRACKET,"illegal state")
+//    return Block(statements)
+//}
+
+private fun parseBlock(partBlock: PartBlock, localVariables: List<LocalVariable>, ast: InitialAST): Block {
     val scopedLocalVariables = mutableListOf<LocalVariable>()
-    while(tokens.peek().type != CLOSE_BRACKET) {
-        val statement = parseStatement(tokens, initialAST, localVariables + scopedLocalVariables)
-        if(statement is DeclareVariableStatement){
-            scopedLocalVariables.add(LocalVariable(
-                name = statement.variableName,
-                type = statement.expression.type,
-                isFinal = statement.final
-            ))
+    val statements = partBlock.statements.map { statement ->
+        when(statement) {
+            is PartVariableDef -> {
+                val expr = parseExpression(statement.value, localVariables + scopedLocalVariables, ast)
+                if(statement.typeDef != null && statement.typeDef != expr.type) {
+                    throw ParseException("mismatched types. Specified ${statement.typeDef}, got ${expr.type}")
+                }
+                if(scopedLocalVariables.any { it.name ==  statement.name } || localVariables.any { it.name == statement.name }) {
+                    throw ParseException("variable \"${statement.name}\" already defined")
+                }
+                scopedLocalVariables.add(LocalVariable(name = statement.name, type = expr.type, isFinal = !statement.mutable))
+                DeclareVariableStatement(statement.name, !statement.mutable, expr)
+            }
+            is PartIfStatement -> {
+                val conditional = parseExpression(statement.conditional, localVariables + scopedLocalVariables, ast)
+                if(conditional.type != type("bool")) {
+                    throw ParseException("if statement conditional should be of type boolean, not of type ${conditional.type}")
+                }
+                val block = parseBlock(statement.block, localVariables + scopedLocalVariables, ast)
+                IfStatement(conditional, block)
+            }
+            is PartWhileStatement -> {
+                val conditional = parseExpression(statement.conditional, localVariables + scopedLocalVariables, ast)
+                if(conditional.type != type("bool")) {
+                    throw ParseException("if statement conditional should be of type boolean, not of type ${conditional.type}")
+                }
+                val block = parseBlock(statement.block, localVariables + scopedLocalVariables, ast)
+                IfStatement(conditional, block)
+
+            }
+            is PartReturn -> {
+                ReturnStatement(parseExpression(statement.value,localVariables + scopedLocalVariables,ast))
+            }
+            is PartExpressionStatement -> {
+                ExpressionStatement(parseExpression(statement.expression, localVariables + scopedLocalVariables, ast))
+            }
         }
-        statements.add(statement)
     }
-    tokens.remove().checkType(CLOSE_BRACKET,"illegal state")
     return Block(statements)
 }
+private fun parseExpression(expression: PartExpression, localVariables: List<LocalVariable>, ast: InitialAST): Expression {
+    return when(expression) {
+        is IdentifierPartExpression -> {
+            // variable time
+            val variable = localVariables.firstOrNull { it.name == expression.id } ?: throw ParseException("can't find variable \"${expression.id}\"")
+            VariableAccessExpression(variableName = variable.name, type = variable.type, isMutable = !variable.isFinal)
+        }
+        is IntegerValuePartExpression -> {
+            IntegerValueExpression(expression.v, BaseType(TypeEnum.INT32))
+        }
+        is PrefixOperatorExpression -> when(expression.prefix){
+            "!" -> TODO()
+            "-" -> TODO()
 
-private fun parseExpression(tokens: TokenQueue,  initialAST: InitialAST, localVariables: List<LocalVariable>): Expression {
-    // okay, wonderful
-    val first = tokens.remove()
-    fun checkForOperator(expression: Expression): Expression {
-        val trueNext = tokens.peekWithNewline()
-        val next = tokens.peek()
-        if(trueNext.type == NEWLINE && next.type in listOf(ASTERISK, OPEN_PARENTHESES)) { // this list should expand in the future
-            return expression
-        }
-        return when(next.type) {
-            OPERATOR, ASTERISK -> {
-                tokens.remove() // consume it
-                val math = MathType.values().firstOrNull { it.symbol == next.content }
-                if(math != null) {
-                     checkForOperator(MathExpression(expression, parseExpression(tokens, initialAST, localVariables), math))
-                } else {
-                    if(next.content == "==" || next.content == "!="){
-                        EqualsExpression(expression, parseExpression(tokens, initialAST, localVariables), next.content == "!=")
-                    } else TODO("can't handle any other operators")
+            "*" -> DereferencePointerExpression(parseExpression(expression.expression, localVariables, ast))
+            "&" -> {
+                val expr = parseExpression(expression.expression, localVariables, ast)
+                if(expr !is LValueExpression) {
+                    error("expression must be an lvalue in order to reference it")
                 }
+                RefExpression(expr, expr.isMutableLValue())
             }
-            OPEN_PARENTHESES -> {
-                if(first.type != IDENTIFIER) throw ParseException("not a functional language, yet", next)
-                TODO()
+            else -> error("Non-exhaustive pattern in compiler")
+        }
+        is InfixOperatorExpression -> when(expression.operator){
+            "+","-","*","/","==","!=" -> ComparisonExpression(
+                    var1 = parseExpression(expression.left, localVariables, ast),
+                    mathType = MathType.values().firstOrNull { it.symbol == expression.operator } ?: error("pattern bullshit"),
+                    var2 = parseExpression(expression.right, localVariables, ast))
+            "=" -> {
+                val var1 = parseExpression(expression.left, localVariables, ast)
+                if(var1 !is LValueExpression) error("$var1 must be an lvalue expression to be set")
+                val var2 = parseExpression(expression.right, localVariables, ast)
+                if(var1.type != var2.type) error("mismatched types. Attempting to set ${var1.type} but found ${var2.type}")
+                AssigmentExpression(var1, var2)
             }
-            CLOSE_PARENTHESES, COMMA, SEMICOLON, CLOSE_BRACKET, IDENTIFIER, RETURN_KEYWORD, IF_KEYWORD, WHILE_KEYWORD, OPEN_BRACKET -> expression
-            DOT -> TODO("member access not supported yet")
-            else -> throw ParseException("unexpected token type ${next.type.name} while parsing expression", next)
+            else -> error("didn't cover everything")
         }
-    }
-    return when (first.type) {
-        INTEGER -> {
-            val str = first.content
-            val typeChars = str.takeLastWhile { it in listOf('b','s','i','l','u') }
-            val type = when(typeChars){
-                "b" -> INT8
-                "s" -> INT16
-                "i" -> INT32
-                "l" -> INT64
-                "ub" -> UINT8
-                "us" -> UINT16
-                "ui", "u" -> UINT32
-                "ul" -> UINT64
-                else -> INT32
-            }
-            val number = str.dropLast(typeChars.length)
-            checkForOperator(number.toLongOrNull()?.let { IntegerValueExpression(it, BaseType(type)) }
-                ?: throw ParseException("can't support that type of integer", first))
-        }
-        OPEN_PARENTHESES -> {
-            val enclosed = parseExpression(tokens, initialAST, localVariables)
-            tokens.remove().checkType(CLOSE_PARENTHESES, "expecting a closed parentheses")
-            checkForOperator(enclosed)
-        }
-        ASTERISK -> {
-            val dereferencedPointer = parseExpression(tokens, initialAST, localVariables)
-            if(dereferencedPointer.type !is PointerType) {
-                throw ParseException("Can't derefrence a non-pointer type " + dereferencedPointer.type, first)
-            }
-            DereferencePointerExpression(dereferencedPointer)
-        }
-        TRUE, FALSE -> {
-            IntegerValueExpression(if(first.type == TRUE) 1 else 0, BaseType(TypeEnum.BOOLEAN))
-        }
-        IDENTIFIER -> {
-            if (tokens.peek().type == OPEN_PARENTHESES) {
-                val arguments = mutableListOf<Expression>()
-                tokens.remove().checkType(OPEN_PARENTHESES, "popped token changed from last peek")
-                while (true) {
-                    if (arguments.isEmpty()) {
-                        val token = tokens.peek()
-                        if (token.type == CLOSE_PARENTHESES) {
-                            tokens.remove() // remove the close parentheses
-                            break
-                        }
-                        if (token.type == COMMA) throw ParseException("not expecting a comma", token)
-                    } else {
-                        val token = tokens.remove()
-                        if (token.type == CLOSE_PARENTHESES) break
-                        if (token.type != COMMA) throw ParseException("expecting a comma $arguments", token)
-                    }
-                    arguments.add(parseExpression(tokens, initialAST, localVariables))
-                }
-                // ok, let's find the function with that name
-                val functionOptions = initialAST.functions.filter { it.name == first.content }
-                if(functionOptions.isEmpty()) throw ParseException("Can't find function named \"${first.content}\"", first)
-                val function = functionOptions.firstOrNull {
-                    it.arguments.size == arguments.size && arguments.map { w -> w.type } == it.arguments.map { w -> w.type }
-                } ?: throw ParseException("Can't find function named \"${first.content}\" where arguments are ${arguments.map { it.type }}\n" +
-                    "Possible options:\n" +
-                    functionOptions.map { "\t - " + it.toDefString() + "\n"}, first)
-
-                checkForOperator(FunctionCallExpression(
-                    arguments = arguments,
-                    functionIdentifier = function.identifier,
-                    returnType = function.returnType,
-                    argumentNames = function.arguments.map { it.name }))
+        is FunctionCallPartExpression -> {
+            val functionName = expression.value
+            val identifier = if(functionName is IdentifierPartExpression) {
+                functionName.id
             } else {
-                val firstAsLocalVariable = VariableAccessExpression(first.content,
-                    type = localVariables.firstOrNull { it.name == first.content }?.type
-                        ?: throw ParseException("can't find variable ${first.content}", first)
-                )
-                checkForOperator(firstAsLocalVariable)
+                TODO("structs - coming soon!")
             }
+            val arguments = expression.arguments.map { parseExpression(it, localVariables, ast) }
+            val possibleFunctions = ast.functions.filter { it.name == identifier }
+            if(possibleFunctions.isEmpty()) throw ParseException("can't find function \"$identifier\"")
+            val realFunction = possibleFunctions.firstOrNull { f ->
+                f.arguments.size == arguments.size && f.arguments.map { it.type } == arguments.map { it.type } }
+                    ?: error("can't find function with type signature " + arguments.joinToString(", ", "(", ")") { it.type.toString() } +
+                            "\nPossible alternitives with the same name:\n" + possibleFunctions.joinToString("\n","","") { f ->
+                        f.name + " " + f.arguments.joinToString(", ","(",")") { it.type.toString() }
+                    })
+            FunctionCallExpression(
+                    functionIdentifier = realFunction.identifier,
+                    returnType = realFunction.returnType,
+                    arguments = arguments
+            )
         }
-        CHARACTER -> {
-            val str = first.content[1]
-            IntegerValueExpression(str.toByte().toLong(), BaseType(UINT8))
-        }
-        STRING -> {
-            StringLiteralExpression(first.content.substring(1, first.content.lastIndex)
-                    .replace("\\n","\n")
-                    .replace("\\t","\t"))
-        }
-        REF -> {
-            val variableName = tokens.remove().checkType(IDENTIFIER, "can only ref a variable").content
-            val variable = localVariables.firstOrNull { it.name == variableName }
-                    ?: throw ParseException("can't find variable \"$variableName\"", first)
-            checkForOperator(RefExpression(variableName, variable.type, variableMutable = !variable.isFinal))
-        }
-        else -> TODO("can't support expressions that start with type ${first.type}")
     }
 }
 
-private fun parseStatement(tokens: TokenQueue, initialAST: InitialAST, localVariables: List<LocalVariable>): Statement {
-    // this compiles ONE SINGLE STATEMENT
-    var firstToken = tokens.remove()
-    return when (firstToken.type) {
-        SEMICOLON -> NoOpStatement
-        IF_KEYWORD -> {
-            // parse an if statement
-            val conditional = parseExpression(tokens, initialAST, localVariables)
-            val block = parseBlock(tokens, initialAST, localVariables)
-            IfStatement(conditional, block)
-        }
-        ASTERISK -> {
-            // it's a deref
-            val nextToken = tokens.remove()
-            val ptr = when (nextToken.type) {
-                OPEN_PARENTHESES -> {
-                    val expression = parseExpression(tokens, initialAST, localVariables)
-                    tokens.remove().checkType(CLOSE_PARENTHESES, "expecting a close parentheses here")
-                    expression
-                }
-                IDENTIFIER -> {
-                    val variable = localVariables.firstOrNull { it.name == nextToken.content } ?: throw ParseException("can't find variable ${nextToken.content}", nextToken)
-                    if(variable.type !is PointerType) {
-                        throw ParseException("variable must be of pointer type to be dereferenced", nextToken)
-                    }
-                    VariableAccessExpression(variable.name, variable.type)
-                }
-                else -> throw ParseException("unexpected token", nextToken)
-            }
-            val equals =  tokens.remove()
-            if(equals.type != OPERATOR || equals.content != "=") {
-                throw ParseException("expecting a = token", equals)
-            }
-            val value = parseExpression(tokens, initialAST, localVariables)
-            // typecheck
-            if(ptr.type !is PointerType) throw ParseException("pointer value needs to be of type pointer")
-            val pointerValue = ptr.type as PointerType
-            if(pointerValue.type != value.type) throw ParseException("expecting value of type ${pointerValue.type}, got ${value.type}", equals)
-            if(!pointerValue.writeable) throw ParseException("can't write to a read-only pointer", equals)
-            MemoryWriteStatement(ptr, value)
-        }
-        WHILE_KEYWORD -> {
-            val conditional = parseExpression(tokens, initialAST, localVariables)
-            val block = parseBlock(tokens, initialAST, localVariables)
-            WhileStatement(conditional, block)
-        }
-        RETURN_KEYWORD -> {
-            val value = parseExpression(tokens, initialAST, localVariables)
-            ReturnStatement(value)
-        }
-        IDENTIFIER -> {
-            // well, it might be a function call, or it might be a equals-type thing
-            // check the next character
-            val isMutable = if(firstToken.content == "mut") {
-                firstToken = tokens.remove()
-                true
-            } else false
+/** this expects { and } to be on the queue */
+private fun parsePartBlock(tokens: TokenQueue, initialAST: InitialAST): PartBlock {
+    tokens.remove().checkType(OPEN_BRACKET,"expecting {")
+    val statements = mutableListOf<PartStatement>()
+    while(tokens.peek().type != CLOSE_BRACKET) {
+        statements.add(parsePartStatement(tokens, initialAST))
+    }
+    tokens.remove().checkType(CLOSE_BRACKET,"expecting }")
+    return PartBlock(statements)
+}
 
-            if(firstToken.content == "val") {
+
+// ast is needed for structs later
+private fun parsePartStatement(tokens: TokenQueue, initialAST: InitialAST): PartStatement {
+    val firstToken = tokens.remove()
+    return when(firstToken.type) {
+        RETURN_KEYWORD -> PartReturn(parseExpressionPart(tokens))
+        IF_KEYWORD -> PartIfStatement(parseExpressionPart(tokens), parsePartBlock(tokens, initialAST))
+        WHILE_KEYWORD -> PartWhileStatement(parseExpressionPart(tokens), parsePartBlock(tokens, initialAST))
+        IDENTIFIER -> {
+            val (nextToken, isMutable) = if (firstToken.content == "mut") {
+                tokens.remove() to true
+            } else firstToken to false
+            if(nextToken.content == "val") {
                 val identifier = tokens.remove().checkType(IDENTIFIER, "looking for variable identifier").content
-                val nextToken = tokens.remove()
-                if (!(nextToken.type == OPERATOR && nextToken.content == "=")) {
-                    throw ParseException("expecting an equal sign", nextToken)
-                }
-                val expression = parseExpression(tokens, initialAST, localVariables)
-                DeclareVariableStatement(
-                        variableName = identifier,
-                        final = !isMutable,
-                        expression = expression
-                )
-            } else if(firstToken.content in initialAST.structs.map { it.name }.plus(TypeEnum.values().flatMap { it.names })) {
-                val firstTokens = listOf(firstToken) + tokens.removeWhile { it.type != OPERATOR || it.content == "+" }
-                val identifier = firstTokens.last()
-                val type = parseType(firstTokens.dropLast(1), identifier)
-                val nextToken = tokens.remove()
-                if (!(nextToken.type == OPERATOR && nextToken.content == "=")) {
-                    throw ParseException("expecting an equal sign", nextToken)
-                }
-                val expression = parseExpression(tokens, initialAST, localVariables)
-                if(!willTypeFit(expression.type, type)) {
-                    throw ParseException("mismatched types: expecting $type but got ${expression.type}",nextToken)
-                }
-                DeclareVariableStatement(
-                        variableName = identifier.content,
-                        final = !isMutable,
-                        expression = expression
-                )
-            } else if(tokens.peek().type == OPERATOR) {
-                val operator = tokens.remove()
-                if(operator.content == "=") {
-                    val variable = localVariables.firstOrNull { it.name == firstToken.content } ?: throw ParseException("can't find variable ${firstToken.content}", firstToken)
-                    if(variable.isFinal) throw ParseException("variable is final", firstToken)
-                    val expression = parseExpression(tokens, initialAST, localVariables)
-                    AssignVariableStatement(
-                        variableName = variable.name,
-                        expression = expression
-                    )
-                } else {
-                    TODO("can't support operators after identifiers as a statement")
-                }
+                tokens.remove().checkType(ASSIGNMENT, "looking for equal sign")
+                val expression = parseExpressionPart(tokens)
+                PartVariableDef(typeDef = null, name = identifier, mutable = isMutable, value = expression)
             } else {
-                tokens.shove(firstToken)
-                ExpressionStatement(parseExpression(tokens, initialAST, localVariables))
+                // is it a type?
+                val type = TypeEnum.values().firstOrNull { it.names.contains(nextToken.content) }
+                        ?.let { BaseType(it) }
+                        ?: initialAST.structs.firstOrNull { it.name == nextToken.content }?.type
+                if(type == null) {
+                    // must be an expression or function or smth
+                    tokens.shove(nextToken)
+                    val expression = parseExpressionPart(tokens)
+                    PartExpressionStatement(expression)
+                } else {
+                    var pointerType: Type = type
+                    while(tokens.peek().type in listOf(ASTERISK, PLUS)) {
+                        pointerType = PointerType(pointerType, tokens.peek().type == ASTERISK)
+                    }
+                    val identifier = tokens.remove().checkType(TokenType.IDENTIFIER, "expecting a variable identifier here")
+                    val expression = parseExpressionPart(tokens)
+                    PartVariableDef(typeDef = pointerType, name = identifier.content, mutable = isMutable, value = expression)
+                }
             }
         }
-        else -> throw ParseException("can't support statements that start with ${firstToken.content}", firstToken)
+        else -> throw ParseException("can't start statement with this token", firstToken)
     }
 }
+
+
+sealed class PartStatement
+data class PartIfStatement(val conditional: PartExpression, val block: PartBlock): PartStatement()
+data class PartWhileStatement(val conditional: PartExpression, val block: PartBlock): PartStatement()
+data class PartBlock(val statements: List<PartStatement>)
+data class PartReturn(val value: PartExpression): PartStatement()
+data class PartVariableDef(val typeDef: Type?, val name: String, val mutable: Boolean, val value: PartExpression): PartStatement()
+data class PartExpressionStatement(val expression: PartExpression): PartStatement()
+
+sealed class PartExpression(val str: String)
+data class IdentifierPartExpression(val id: String): PartExpression(id)
+data class IntegerValuePartExpression(val v: Int): PartExpression(v.toString())
+data class PrefixOperatorExpression(val prefix: String, val expression: PartExpression): PartExpression("$prefix${expression.str}")
+data class InfixOperatorExpression(val operator: String, val left: PartExpression, val right: PartExpression): PartExpression("(${left.str} $operator ${right.str})")
+data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
+        PartExpression(value.str + arguments.joinToString(",","(", ")") { it.str } )
+
+fun parsePrefixOp(queue: TokenQueue, token: Token, precedence: Precedence) =
+        PrefixOperatorExpression(token.content, parseExpressionPart(queue, precedence.oneLess()))
+fun parseInfixOp(queue: TokenQueue, left: PartExpression, token: Token, precedence: Precedence) =
+        InfixOperatorExpression(token.content, left, parseExpressionPart(queue, precedence.oneLess()))
+
+
+private class InfixParser(val type: TokenType, val runner: (TokenQueue, PartExpression, Token, Precedence) -> PartExpression, val precedence: Precedence)
+private class PrefixParser(val type: TokenType, val runner: (TokenQueue, Token, Precedence) -> PartExpression, val precedence: Precedence)
+
+private fun parser(type: TokenType, precedence: Precedence, runner: (TokenQueue, PartExpression, Token, Precedence) -> PartExpression) =
+        InfixParser(type, runner, precedence)
+private fun parser(type: TokenType, precedence: Precedence, runner: (TokenQueue, Token, Precedence) -> PartExpression) =
+        PrefixParser(type, runner, precedence)
+
+
+private val prefixParserMap = listOf(
+        parser(ASTERISK, Precedence.PREFIX, ::parsePrefixOp),
+        parser(MINUS, Precedence.PREFIX, ::parsePrefixOp),
+        parser(REF, Precedence.PREFIX, ::parsePrefixOp),
+        parser(NOT, Precedence.PREFIX, ::parsePrefixOp),
+        parser(IDENTIFIER, Precedence.PREFIX) { _, t, _ -> IdentifierPartExpression(t.content) },
+        parser(INTEGER, Precedence.PREFIX) { _, t, _ -> IntegerValuePartExpression(t.content.toInt()) },
+
+        parser(OPEN_PARENTHESES, Precedence.PREFIX) { queue, _, _ ->
+            val expr = parseExpressionPart(queue, Precedence.NONE)
+            queue.remove().checkType(CLOSE_PARENTHESES, "expecting a close parenthesese")
+            expr
+        }
+)
+private val infixParserMap = listOf(
+        parser(PLUS, Precedence.SUM, ::parseInfixOp),
+        parser(MINUS, Precedence.SUM, ::parseInfixOp),
+        parser(ASTERISK, Precedence.PRODUCT, ::parseInfixOp),
+        parser(SLASH, Precedence.PRODUCT, ::parseInfixOp),
+        parser(EQUALS_EQUALS, Precedence.CONDITIONAL, ::parseInfixOp),
+        parser(NOT_EQUALS, Precedence.CONDITIONAL, ::parseInfixOp),
+        parser(ASSIGNMENT, Precedence.ASSIGNMENT, ::parseInfixOp),
+        parser(OPEN_PARENTHESES, Precedence.CALL) { queue, left, token, prec ->
+            val arguments = mutableListOf<PartExpression>()
+            token.checkType(OPEN_PARENTHESES, "this better be an open parenth")
+            var first = true
+
+            loop@ while(true) {
+                val next = queue.remove()
+                if(first) {
+                    first = false
+                    if(next.type == CLOSE_PARENTHESES) break@loop
+                    queue.shove(next)
+                    arguments.add(parseExpressionPart(queue, Precedence.NONE))
+                } else {
+                    when (next.type) {
+                        CLOSE_PARENTHESES -> break@loop
+                        COMMA -> arguments.add(parseExpressionPart(queue, Precedence.NONE))
+                        else -> throw ParseException("not sure what you want here", next)
+                    }
+                }
+            }
+            println("arguments: $arguments")
+            FunctionCallPartExpression(left, arguments)
+        }
+)
+
+class Precedence(val order: Int) {
+    companion object {
+        val NONE = Precedence(0)
+        val ASSIGNMENT = Precedence(1)
+        val CONDITIONAL = Precedence(2)
+        val SUM = Precedence(3)
+        val PRODUCT = Precedence(4)
+        val PREFIX = Precedence(5)
+        val CALL = Precedence(6)
+    }
+    operator fun compareTo(other: Precedence):Int {
+        return this.order.compareTo(other.order)
+    }
+    fun oneLess():Precedence {
+        return Precedence(if(order == 0) 0 else order - 1)
+    }
+}
+
+
+private fun parseExpressionPart(tokens: TokenQueue, precedence: Precedence = Precedence.NONE): PartExpression {
+    val next = tokens.remove()
+    val prefixParser = prefixParserMap.firstOrNull { it.type == next.type } ?: throw ParseException("not a prefix operator", next)
+    var left =  prefixParser.runner(tokens, next, precedence)
+    while(true) {
+        val newline = tokens.peekWithNewline()
+        if (newline.type == NEWLINE) return left
+        val peek = tokens.peek()
+        if(precedence >= infixParserMap.firstOrNull { peek.type == it.type }?.precedence ?: Precedence.NONE) break
+        val infixParser = infixParserMap.firstOrNull { it.type == peek.type } ?: return left
+        tokens.remove() // remove the token
+        left = infixParser.runner(tokens, left, peek, infixParser.precedence /*might be 'precedence'*/)
+    }
+    return left
+}
+
 
 fun TokenQueue.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurrounding: Boolean = false): List<Token> {
     val opening = this.remove().checkType(beginning, "must start with the proper opening token, ${beginning.name}")
@@ -304,5 +345,6 @@ fun TokenQueue.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurr
     }
     val ending = this.remove().checkType(end, "illegal state")
     if(includeSurrounding) list.add(ending)
+
     return list
 }

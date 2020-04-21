@@ -7,6 +7,9 @@ import java.util.*
 
 
 class TokenQueue(private val queue: Deque<Token>) {
+    override fun toString(): String {
+        return queue.toString()
+    }
     fun peek(): Token {
         cleanNewlines()
         return queue.peekFirst() ?: throw CompilerException("reached end of file while parsing")

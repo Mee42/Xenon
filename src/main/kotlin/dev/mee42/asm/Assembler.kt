@@ -18,16 +18,30 @@ private fun stackPointerRegister(offset: Int, size: RegisterSize): AdvancedRegis
     )
 }
 
+
+fun ValueSize.fitToRegister(): RegisterSize {
+    if(!canFitInRegister) {
+        error("can't fit in a registers, structs don't work yet")
+    }
+    return when(this.bytes) {
+        1 -> RegisterSize.BIT8
+        2 -> RegisterSize.BIT16
+        4 -> RegisterSize.BIT32
+        8 -> RegisterSize.BIT64
+        else -> error("illegal")
+    }
+}
+
 private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembly {
     // these are the registers needed to call this function:
     val variableBindings = mutableListOf<Variable>()
 
-    val returnRegister = SizedRegister(function.returnType.size, Register.A)
+//    val returnRegister = SizedRegister(function.returnType.size, Register.A)
     val accumulatorRegister = Register.A
     // so we don't use these variables on accident
-    this += AssemblyInstruction.CommentedLine(
-        line = AssemblyInstruction.Label(function.identifier),
-        comment = "return value in register $returnRegister")
+//    this += AssemblyInstruction.CommentedLine(
+       this += AssemblyInstruction.Label(function.identifier)
+//        comment = "return value in register $returnRegister")
     // so the argument registers are
     // for now, let's fit everything into 8 bytes?
     // yeah
@@ -38,7 +52,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
     }
     var position = function.arguments.sumBy { 8 /*arguments are 8 bytes because they're pushed to the stack*/ /*it.type.size.bytes*/ }.plus(8).padUpTo16()
     function.arguments.forEachIndexed { i, it ->
-        val register = stackPointerRegister(position, it.type.size)
+        val register = stackPointerRegister(position, it.type.size.fitToRegister())
         position -= 8
         variableBindings.add(Variable(it.name, it.type, register))
         this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
@@ -64,6 +78,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
     }
     this += assembleBlock(variableBindings, ast, accumulatorRegister, function.content, 0, returnInstructions)
 }
+
 
 
 fun assembleBlock(variableBindings: List<Variable>,
@@ -92,7 +107,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                 val size = expression.type.size
                 localVariableLocation -= size.bytes
 
-                val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size, localVariableLocation)
+                val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size.fitToRegister(), localVariableLocation)
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
                 this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
                 localVariables.add(Variable(
@@ -101,7 +116,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                     type = expression.type))
                 this += AssemblyInstruction.Mov(
                     reg1 = variableRegister,
-                    reg2 = SizedRegister(size, accumulatorRegister).advanced()).zeroIfNeeded()
+                    reg2 = SizedRegister(size.fitToRegister(), accumulatorRegister).advanced()).zeroIfNeeded()
             }
             is IfStatement -> {
                 // [conditional]
@@ -133,28 +148,6 @@ fun assembleBlock(variableBindings: List<Variable>,
                 this += assembleBlock(variableBindings + localVariables, ast, accumulatorRegister, statement.block, localVariableLocation, returnInstructions)
                 this += AssemblyInstruction.Jump(lstart.name)
                 this += lend
-            }
-            is AssignVariableStatement -> {
-                val expression = statement.expression
-                this += assembleExpression(variableBindings + localVariables, ast, expression, accumulatorRegister, localVariableLocation, returnInstructions)
-                val variableRegister = (variableBindings + localVariables).firstOrNull { it.name == statement.variableName }?.register ?: error("can't find variable ${statement.variableName}")
-                this += AssemblyInstruction.Mov(
-                    reg1 = variableRegister,
-                    reg2 = SizedRegister(statement.expression.type.size, accumulatorRegister).advanced()
-                ).zeroIfNeeded()
-            }
-            is MemoryWriteStatement ->  {
-                this += assembleExpression(variableBindings + localVariables, ast, statement.location, accumulatorRegister, localVariableLocation, returnInstructions)
-                this += AssemblyInstruction.Push(accumulatorRegister)
-                this += assembleExpression(variableBindings + localVariables, ast, statement.value, accumulatorRegister, localVariableLocation, returnInstructions)
-                this += AssemblyInstruction.Pop(Register.B)
-                this += AssemblyInstruction.Mov(
-                        reg1 = AdvancedRegister(
-                                register = SizedRegister(RegisterSize.BIT64, Register.B),
-                                isMemory = true,
-                                size = statement.value.type.size),
-                        reg2 = SizedRegister(statement.value.type.size, accumulatorRegister).advanced()
-                )
             }
         }
     }

@@ -1,3 +1,5 @@
+@file:Suppress("TrailingComma")
+
 package dev.mee42.parser
 
 import dev.mee42.lexer.Token
@@ -28,9 +30,10 @@ data class InitialFunction(val name: String,
                            val attributes: List<String>,
                            val returnType: Type,
                            val content: List<Token>?,
-                           val id: String) {
+                           val id: String
+) {
     fun toDefString() : String {
-        return "function $name" + arguments.map { "" + it.type + " " + it.name }.joinToString(",","(",")") + returnType
+        return "$returnType $name" + arguments.joinToString(",", "(", ")") { "" + it.type + " " + it.name }
     }
 
     companion object {
@@ -41,7 +44,8 @@ data class InitialFunction(val name: String,
     }
     val identifier: String = name + id
 }
-class Struct(val name: String)
+
+
 data class InitialAST(val functions: List<InitialFunction>, val structs: List<Struct>) {
     fun withOther(other: InitialAST): InitialAST = InitialAST(this.functions + other.functions, structs)
 }

@@ -1,7 +1,14 @@
 package dev.mee42.parser
 
 
-data class AST(val functions: List<Function>)
+data class AST(val functions: List<Function>, val structs: List<Struct>) {
+    fun copy(mapper: (XenonFunction) -> Function): AST {
+        return AST(
+                functions.map { if(it is XenonFunction) mapper(it) else it },
+                structs
+        )
+    }
+}
 
 
 
@@ -39,8 +46,6 @@ fun printAST(statement: Statement, prepend: String, indent: String) {
         NoOpStatement -> println("$indent $prepend nop")
         is ExpressionStatement -> { println("$indent $prepend expression:"); printAST(statement.expression, "expression:", "$indent|-") }
         is DeclareVariableStatement -> { println("$indent $prepend declared variable ${statement.variableName}"); printAST(statement.expression, "value:", "$indent|-")}
-        is AssignVariableStatement -> { println("$indent $prepend assign variable ${statement.variableName}"); printAST(statement.expression, "value:", "$indent|-")}
-        is MemoryWriteStatement -> { println("TODO memory write statement") }
         is IfStatement -> {
             println("$indent $prepend if statement")
             printAST(statement.conditional, "conditional", "$indent|-")
@@ -63,16 +68,25 @@ fun printAST(expression: Expression, prepend: String, indent: String) {
         is StringLiteralExpression -> {
             println("$indent $prepend string literal \"" + expression.value + '"')
         }
-        is MathExpression -> {
-            println("$indent $prepend TODO math")
-        }
-        is EqualsExpression -> {
-            println("$indent $prepend equals. Negate: " + expression.negate)
+        is ComparisonExpression -> {
+            println("$indent $prepend comparison: " + expression.mathType.name + " " + expression.mathType.symbol)
             printAST(expression.var1, "left arg:", "$indent|-")
             printAST(expression.var2, "left arg:", "$indent|-")
         }
         is FunctionCallExpression ->{
             println("$indent $prepend TODO function call")
+        }
+        is TypelessBlock -> {
+            println("$indent $prepend TODO typeless block")
+        }
+        is BlockExpression -> {
+            println("$indent $prepend TODO block expr")
+        }
+        is RefExpression -> {
+            println("$indent $prepend TODO ref")
+        }
+        is AssigmentExpression -> {
+            println("$indent $prepend TODO assigment expression")
         }
     }
 }

@@ -2,11 +2,10 @@ package dev.mee42.arg
 
 import dev.mee42.asm.Assembly
 import dev.mee42.asm.assemble
+import dev.mee42.decompile
 import dev.mee42.lexer.lex
 import dev.mee42.opt.optimize
-import dev.mee42.parser.markPurity
-import dev.mee42.parser.parsePass1
-import dev.mee42.parser.parsePass2
+import dev.mee42.parser.*
 import dev.mee42.stdLibDef
 import dev.mee42.stdlib
 import dev.mee42.xpp.preprocess
@@ -30,11 +29,17 @@ fun main(args: Array<String>) {
     val preprocessed = time("preprocess") { preprocess(text, globalConfig.target) }
     val tokens = time("lexer") { lex(preprocessed) }
     VerboseOption.TOKENS.println(tokens.joinToString(" ") { it.content })
+
     val initialAST = time("pass1") { parsePass1(tokens).withOther(stdLibDef) }
     val ast = time("pass2") { markPurity(parsePass2(initialAST)) }
-    val optimizedAST = if (config.optimizerIterations == 0)
+    VerboseOption.DECOMPILE_AST.println(ast.decompile())
+    val optimizedAST = if (config.optimizerIterations != 0)
         time("optimize pass") { optimize(ast, config.optimizerIterations) }
     else ast
+    VerboseOption.DECOMPILE_AST.println(ast.decompile("optimized ast"))
+    if(VerboseOption.AST.isSelected()) {
+        printAST(optimizedAST)
+    }
     val asm = time("assemble") {  assemble(optimizedAST) }
     val optimizedASM = time("optimize asm") { optimize(asm) }
     val asmFile = writeToFile(optimizedASM, buildDir, inputFile.name)

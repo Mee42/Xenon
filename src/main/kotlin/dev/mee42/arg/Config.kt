@@ -23,7 +23,7 @@ enum class VerboseOption(val str: String) {
     COMPILE_TIME("compile-timings"),
     OPTIMIZATIONS("optimizations"),
     AST("ast"),
-    DECOMPILE_AST("decompile-ast"),
+    DECOMPILE_AST("decompile"),
     TOKENS("tokens"),
     PURITY("purity"),
     CONFIG("config"),
