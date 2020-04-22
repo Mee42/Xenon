@@ -4,7 +4,9 @@ import dev.mee42.InternalCompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenType
 import dev.mee42.lexer.TokenType.*
+import dev.mee42.lexer.lex
 import dev.mee42.type
+import dev.mee42.xpp.LabeledLine
 import java.util.*
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
@@ -27,7 +29,8 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     }
     // this is a block, it has both the open and close brackets as tokens
     val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = false) }
-    val block = parseBlock(parsePartBlock(TokenQueue(ArrayDeque(it.content)), initialAST), arguments, initialAST)
+    val partBlock = parsePartBlock(TokenQueue(ArrayDeque(it.content)), initialAST)
+    val block = parseBlock(partBlock, arguments, initialAST)
     return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes)
 }
 
@@ -161,6 +164,7 @@ private fun parsePartBlock(tokens: TokenQueue, initialAST: InitialAST): PartBloc
     tokens.remove().checkType(OPEN_BRACKET,"expecting {")
     val statements = mutableListOf<PartStatement>()
     while(tokens.peek().type != CLOSE_BRACKET) {
+        tokens.removeWhile { it.type == SEMICOLON }
         statements.add(parsePartStatement(tokens, initialAST))
     }
     tokens.remove().checkType(CLOSE_BRACKET,"expecting }")
@@ -199,11 +203,16 @@ private fun parsePartStatement(tokens: TokenQueue, initialAST: InitialAST): Part
                     while(tokens.peek().type in listOf(ASTERISK, PLUS)) {
                         pointerType = PointerType(pointerType, tokens.peek().type == ASTERISK)
                     }
-                    val identifier = tokens.remove().checkType(TokenType.IDENTIFIER, "expecting a variable identifier here")
+                    val identifier = tokens.remove().checkType(IDENTIFIER, "expecting a variable identifier here")
+                    tokens.remove().checkType(ASSIGNMENT, "expecting an equals sign here")
                     val expression = parseExpressionPart(tokens)
                     PartVariableDef(typeDef = pointerType, name = identifier.content, mutable = isMutable, value = expression)
                 }
             }
+        }
+        ASTERISK, OPEN_PARENTHESES -> {
+            tokens.shove(firstToken)
+            PartExpressionStatement(parseExpressionPart(tokens))
         }
         else -> throw ParseException("can't start statement with this token", firstToken)
     }
@@ -226,30 +235,30 @@ data class InfixOperatorExpression(val operator: String, val left: PartExpressio
 data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
         PartExpression(value.str + arguments.joinToString(",","(", ")") { it.str } )
 
-fun parsePrefixOp(queue: TokenQueue, token: Token, precedence: Precedence) =
-        PrefixOperatorExpression(token.content, parseExpressionPart(queue, precedence.oneLess()))
 fun parseInfixOp(queue: TokenQueue, left: PartExpression, token: Token, precedence: Precedence) =
         InfixOperatorExpression(token.content, left, parseExpressionPart(queue, precedence.oneLess()))
 
 
 private class InfixParser(val type: TokenType, val runner: (TokenQueue, PartExpression, Token, Precedence) -> PartExpression, val precedence: Precedence)
-private class PrefixParser(val type: TokenType, val runner: (TokenQueue, Token, Precedence) -> PartExpression, val precedence: Precedence)
+private class PrefixParser(val type: TokenType, val runner: (TokenQueue, Token) -> PartExpression)
 
 private fun parser(type: TokenType, precedence: Precedence, runner: (TokenQueue, PartExpression, Token, Precedence) -> PartExpression) =
         InfixParser(type, runner, precedence)
-private fun parser(type: TokenType, precedence: Precedence, runner: (TokenQueue, Token, Precedence) -> PartExpression) =
-        PrefixParser(type, runner, precedence)
+private fun parser(type: TokenType, runner: (TokenQueue, Token) -> PartExpression = ::prefixOp) =
+        PrefixParser(type, runner)
 
+
+fun prefixOp(queue: TokenQueue, token: Token) =
+        PrefixOperatorExpression(token.content, parseExpressionPart(queue, Precedence.PREFIX))
 
 private val prefixParserMap = listOf(
-        parser(ASTERISK, Precedence.PREFIX, ::parsePrefixOp),
-        parser(MINUS, Precedence.PREFIX, ::parsePrefixOp),
-        parser(REF, Precedence.PREFIX, ::parsePrefixOp),
-        parser(NOT, Precedence.PREFIX, ::parsePrefixOp),
-        parser(IDENTIFIER, Precedence.PREFIX) { _, t, _ -> IdentifierPartExpression(t.content) },
-        parser(INTEGER, Precedence.PREFIX) { _, t, _ -> IntegerValuePartExpression(t.content.toInt()) },
-
-        parser(OPEN_PARENTHESES, Precedence.PREFIX) { queue, _, _ ->
+        parser(ASTERISK),
+        parser(MINUS),
+        parser(REF),
+        parser(NOT),
+        parser(IDENTIFIER) { _, t -> IdentifierPartExpression(t.content) },
+        parser(INTEGER) { _, t -> IntegerValuePartExpression(t.content.toInt()) },
+        parser(OPEN_PARENTHESES) { queue, _ ->
             val expr = parseExpressionPart(queue, Precedence.NONE)
             queue.remove().checkType(CLOSE_PARENTHESES, "expecting a close parenthesese")
             expr
@@ -262,8 +271,10 @@ private val infixParserMap = listOf(
         parser(SLASH, Precedence.PRODUCT, ::parseInfixOp),
         parser(EQUALS_EQUALS, Precedence.CONDITIONAL, ::parseInfixOp),
         parser(NOT_EQUALS, Precedence.CONDITIONAL, ::parseInfixOp),
-        parser(ASSIGNMENT, Precedence.ASSIGNMENT, ::parseInfixOp),
-        parser(OPEN_PARENTHESES, Precedence.CALL) { queue, left, token, prec ->
+        parser(ASSIGNMENT, Precedence.ASSIGNMENT) { queue ,left, token, _ ->
+            InfixOperatorExpression(token.content, left, parseExpressionPart(queue, Precedence.NONE))
+        },
+        parser(OPEN_PARENTHESES, Precedence.CALL) { queue, left, token, _ ->
             val arguments = mutableListOf<PartExpression>()
             token.checkType(OPEN_PARENTHESES, "this better be an open parenth")
             var first = true
@@ -288,7 +299,7 @@ private val infixParserMap = listOf(
         }
 )
 
-class Precedence(val order: Int) {
+class Precedence(private val order: Int) {
     companion object {
         val NONE = Precedence(0)
         val ASSIGNMENT = Precedence(1)
@@ -306,15 +317,17 @@ class Precedence(val order: Int) {
     }
 }
 
-
+// *ptr + 1
+// left: *(ptr + 1)
 private fun parseExpressionPart(tokens: TokenQueue, precedence: Precedence = Precedence.NONE): PartExpression {
     val next = tokens.remove()
     val prefixParser = prefixParserMap.firstOrNull { it.type == next.type } ?: throw ParseException("not a prefix operator", next)
-    var left =  prefixParser.runner(tokens, next, precedence)
+    var left =  prefixParser.runner(tokens, next)
     while(true) {
         val newline = tokens.peekWithNewline()
         if (newline.type == NEWLINE) return left
         val peek = tokens.peek()
+        // if the precedence is >= whatever the precedence of the next infix expression would be
         if(precedence >= infixParserMap.firstOrNull { peek.type == it.type }?.precedence ?: Precedence.NONE) break
         val infixParser = infixParserMap.firstOrNull { it.type == peek.type } ?: return left
         tokens.remove() // remove the token
@@ -347,4 +360,19 @@ fun TokenQueue.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurr
     if(includeSurrounding) list.add(ending)
 
     return list
+}
+
+
+fun main() {
+    val scan = Scanner(System.`in`)
+    while(true) {
+        print("> ")
+        System.out.flush()
+        val input = scan.nextLine().replace("\\n","\n")
+        val tokens = TokenQueue(ArrayDeque(lex(listOf(LabeledLine(input, -1, "tmp")))))
+        val expr = parseExpressionPart(tokens)
+        println(expr)
+        println(expr.str)
+        println("left over: $tokens")
+    }
 }

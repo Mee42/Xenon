@@ -74,7 +74,7 @@ fun decompile(expression: Expression, indent: Indent): String {
         is FunctionCallExpression -> expression.functionIdentifier +
                 expression.arguments.joinToString(", ", "(",")") { decompile(it, indent) }
         is TypelessBlock -> "t{" + expression.expressions.joinToString(", ", "","") { decompile(it, indent.more()) } + "}"
-        is RefExpression -> "&${decompile(expression, indent.more())}"
+        is RefExpression -> "&${decompile(expression.lvalue, indent.more())}"
         is AssigmentExpression -> decompile(expression.setLocation, indent.more()) + " = " + decompile(expression.value, indent.more())
     }
 }

@@ -9,8 +9,9 @@ struct list {
 }
 
 int main() {
-    val x = 7
-    val y = x = 8
+    mut val x = 7
+    mut val ptr = &x
+    val y = *ptr + 8
     println(x)
     println(y)
     return 0

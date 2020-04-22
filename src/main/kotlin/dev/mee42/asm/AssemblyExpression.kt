@@ -226,7 +226,18 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
                 )
                 this += AssemblyInstruction.Comment("variable access E")
             }
-            is DereferencePointerExpression -> TODO()
+            is DereferencePointerExpression -> {
+                this += assembleExpression(expression.setLocation.pointerExpression)
+                // pointer is in rax
+                // evaluate the other side
+                this += AssemblyInstruction.Push(Register.A)
+                this += assembleExpression(expression.value)
+                this += AssemblyInstruction.Pop(Register.B)
+                this += AssemblyInstruction.Mov(
+                        reg1 = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.B),true, expression.value.type.size.fitToRegister()),
+                        reg2 = SizedRegister(expression.value.type.size.fitToRegister(), Register.A).advanced()
+                )
+            }
         }
     }
 

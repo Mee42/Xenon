@@ -110,7 +110,6 @@ private fun parseArgument(tokens: List<Token>): Pass0Function.Pass0Argument {
     return Pass0Function.Pass0Argument(identifier.content, tokens.dropLast(1), identifierToken = identifier)
 }
 
-fun parseType(tokens: List<Token>, initialAST: InitialAST):Type = parseType(tokens, initialAST.structs)
 
 fun parseType(tokens: List<Token>, structs: List<Struct>): Type {
     if(tokens.isEmpty()) throw ParseException("Can't find type")
