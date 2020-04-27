@@ -44,7 +44,7 @@ data class StringLiteralExpression(val value: String) : Expression(type("char*")
 enum class MathType(val symbol: String) {
     ADD("+"), SUB("-"), MULT("*"), DIV("/"), EQUALS("=="),NOT_EQUALS("!=");
 }
-class ComparisonExpression(val var1: Expression, val var2: Expression, val mathType: MathType): Expression(var1.type) {
+class ComparisonExpression(val var1: Expression, val var2: Expression, val mathType: MathType): Expression(if(mathType in listOf(MathType.EQUALS, MathType.NOT_EQUALS)) BaseType(TypeEnum.BOOLEAN) else var1.type) {
     init {
         if(var1.type is PointerType && var2.type is PointerType && mathType != MathType.SUB) {
             error("can't add two pointers")

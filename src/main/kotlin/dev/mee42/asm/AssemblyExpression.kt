@@ -112,8 +112,15 @@ private class ExpressionExistsState(val variableBindings: List<Variable>,
                     signed = !type.type.isUnsigned,
                     divisor = SizedRegister(size, Register.B))
             }
-            MathType.EQUALS -> TODO()
-            MathType.NOT_EQUALS -> TODO()
+            MathType.NOT_EQUALS, MathType.EQUALS -> {
+                this += AssemblyInstruction.Pop(Register.B)
+
+                this += AssemblyInstruction.Compare(
+                    SizedRegister(size, accumulatorRegister),
+                    SizedRegister(size, Register.B).advanced()
+                )
+                this += AssemblyInstruction.SetCC(if(expression.mathType == MathType.NOT_EQUALS) ComparisonOperator.NOT_EQUALS else ComparisonOperator.EQUALS, accumulatorRegister)
+            }
         }
 
     }

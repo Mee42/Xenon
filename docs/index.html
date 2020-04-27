@@ -524,7 +524,7 @@ ie <code>foo + bar</code></p>
 <div class="ulist">
 <ul>
 <li>
-<p>This includes the <code>.</code> operator, which is for member values, such like <code>foo.bar</code></p>
+<p>This includes the <code>.</code> operator, which is for member values, such like <code>foo.bar</code> (broke in latest commit)</p>
 </li>
 </ul>
 </div>
@@ -547,8 +547,8 @@ Assignments can be one of these:</p>
 <div class="content">
 <pre class="highlight"><code class="language-xenon" data-lang="xenon">val a     = 1 // this is immutable
 mut val b = 1 // this is mutable
-a = 7     // this is not allowed, as a is immutable
-b = 7     // this is allowed, as b is mutable</code></pre>
+a = 7         // this is not allowed, as a is immutable
+b = 7         // this is allowed, as b is mutable</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -566,6 +566,21 @@ int32 z     = x  // this will error, because x is not an int32</code></pre>
 </div>
 </div>
 <div class="paragraph">
+<p>Assignments <strong>are expressions</strong> and are typed in the form of:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xenon" data-lang="xenon">$LVALUE = $RVALUE</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An LValue is an expression that could we written to.</p>
+</div>
+<div class="paragraph">
+<p>Examples of LValues include: <code>foo</code>, <code>*foo</code>, <code>foo.bar</code>.
+Values that are not LValues include: <code>7</code>, <code>foo + 1</code>, <code>*foo.bar + 7</code></p>
+</div>
+<div class="paragraph">
 <p>If you wish to set something at the address of a pointer, you must use the <code>*</code> operator.</p>
 </div>
 <div class="listingblock">
@@ -579,15 +594,52 @@ int** array = someFunction()
 </div>
 </div>
 <div class="paragraph">
-<p>All assignments must either be to a direct variable or a dereferenced pointer expression.
-<code>5 = 3</code> won&#8217;t compile (as it should).</p>
-</div>
-<div class="paragraph">
-<p>Assignments are <em>not</em> expressions, meaning that <code>a = b = 7</code> will not compile.</p>
+<p>Assignments are expressions, meaning <code>a = b = 7</code> will compile (though it is not encoraged)</p>
 </div>
 <div class="paragraph">
 <p>Identifiers that start with <code>_</code> are inserted by the compiler and are not allowed in the source code.</p>
 </div>
+<div class="paragraph">
+<p>All 4 math functions have been implemeonted for the int32 type: addition, subtraction, multiplication, and division,
+as well as addition and subtraction for pointer types.
+This addition respects the size of the underlying type and will properly increment the pointer so there is no overlap.
+Division is normal integer division, so <code>3 / 2</code> is <code>1</code>.</p>
+</div>
+<div class="paragraph">
+<p>The <code>==</code> and <code>!=</code> operators are also implemented, meaning equals and not equals respectivly.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mutable_and_immutable_pointers">Mutable and Immutable pointers</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Many problems in C arise from the fact that there is no compile-time semetic analysis
+to catch immutable pointers issues.</p>
+</div>
+<div class="paragraph">
+<p>Now, you might assume that an immutable pointer will always point to the same data.
+This could be very helpful, for example, returning the substring of a string by moving the pointer around.
+The issue with this is that no data in C is ever truly immutable as it&#8217;s all either
+(A) popped off the stack, or (B) <code>free</code>d after being <code>malloc</code>ed, making it not truly immutable.</p>
+</div>
+<div class="paragraph">
+<p>Xenon solves this by not having immutable pointers, but instead "read-only pointers".
+The syntax is similar to a pointer, but instead of an <code>*</code> there is a <code>+</code>.
+This does not garentee that the data is immutable - but it doesn&#8217;t let the caller write to it.</p>
+</div>
+<div class="paragraph">
+<p>It&#8217;s like a type-level garentee that a given function doesn&#8217;t mutate memory at the location passed in.
+For example, to get the length of a <code>char*</code>, no writing is needed.
+So instead, the type is specified as <code>char+</code>, and it&#8217;ll work the same.</p>
+</div>
+<div class="paragraph">
+<p>This also allows you to make sure you know what functions mutate memory -
+as it needs to have a mutable pointer type.</p>
+</div>
+<div class="paragraph">
+<p>This is a feature that has been implemented successfully as of the latest commit.</p>
 </div>
 </div>
 </div>
@@ -597,13 +649,14 @@ int** array = someFunction()
 <div class="paragraph">
 <p>There are many things that you should be able to do that will crash with a NotImplementedException.
 Because writing these down will lead to them being quickly outdated,
-I&#8217;m only going to document shortcomings that will <strong>not</strong> crash the compiler.</p>
+I&#8217;m only going to document shortcdivisionomings that will <strong>not</strong> crash the compiler.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
 <p>Functions are not checked to make sure they return, nor is the return type checked.
-If functions do not return, the program will execute random instructions, and probably segfault.</p>
+If functions do not return, the program will execute random instructions, and (most often) eventually segfault.
+This will probably be fixed by/in the 0.2.0.</p>
 </li>
 </ul>
 </div>
@@ -615,31 +668,69 @@ If functions do not return, the program will execute random instructions, and pr
 <div class="ulist">
 <ul>
 <li>
-<p>Structs</p>
-</li>
-<li>
-<p>Immutable and mutable pointer types.</p>
-<div class="ulist">
-<ul>
-<li>
-<p>The idea being that <code>int+</code> is an immutable int pointer, and <code>int*</code> is a mutable int pointer.
-Though, being an immutable pointer does not mean the value is constant
-(as this would have very limited use),
-it instead just means the holder of the pointer is not allowed - and won&#8217;t, ever - write to it.
-There will be no way to cast an <code>int+</code> to an <code>int*</code> without an <code>@unsafeImmutablePointer</code> attribute
-on the function.</p>
+<p>Structs (being worked on now, planned for 0.2.0)</p>
 </li>
 </ul>
 </div>
-</li>
-</ul>
+<div class="paragraph">
+<p>Structs are just values shoved next to each other. For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xenon" data-lang="xenon">struct student {
+    int gpa
+    int age
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><em>I&#8217;ll take a page out of my CS professor&#8217;s book and quantify students by GPA as a joke</em></p>
+</div>
+<div class="paragraph">
+<p>In memory and assembly, this will literally be 8 bytes of data, and each can be fetched invididually</p>
+</div>
+<div class="paragraph">
+<p>The difficulty with structs is twofold:</p>
+</div>
+<div class="paragraph">
+<p>1) proper lvalue support is needed to support complex struct member assigment. For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xenon" data-lang="xenon">struct a { b bar }
+struct b { int baz }
+a foo = // whatever
+foo.bar.baz = 7</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The compiler has been refactored to allow for lvalues,
+but member-access has not yet been coded (as structs have not been coded yet)</p>
+</div>
+<div class="paragraph">
+<p>2) the A register cannot be used to propogate values from expressions.</p>
+</div>
+<div class="paragraph">
+<p>This is pretty simple. In the past, the expression <code>foo() + 1</code> could just do:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-assembly" data-lang="assembly">call foo // return value is in the eax register
+add eax, eax
+// return value is left in the eax register</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With structs that can be bigger than 8 bytes, this just doesn&#8217;t work at all,
+so the value propogation system needs a revamp to support a different method of
+value passing.</p>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-04-16 15:44:13 -0400
+Last updated 2020-04-27 09:53:22 -0400
 </div>
 </div>
 </body>

@@ -12,6 +12,7 @@ int main() {
     mut val x = 7
     mut val ptr = &x
     val y = *ptr + 8
+    while x != 70 { x = x * 10 }
     println(x)
     println(y)
     return 0

@@ -37,7 +37,7 @@ Expressions follow a couple simple rules.
 ie `foo`
 * Any operator between two expressions,
 ie `foo + bar`
-** This includes the `.` operator, which is for member values, such like `foo.bar`
+** This includes the `.` operator, which is for member values, such like `foo.bar` (broke in latest commit)
 * Parentheses with optional expressions comma-delimited in them,
 ie `foo()`, `bar(a, b, c)`
 * A asterisk before any expression that has a pointer type,
@@ -50,8 +50,8 @@ Assignments can be one of these:
 ----
 val a     = 1 // this is immutable
 mut val b = 1 // this is mutable
-a = 7     // this is not allowed, as a is immutable
-b = 7     // this is allowed, as b is mutable
+a = 7         // this is not allowed, as a is immutable
+b = 7         // this is allowed, as b is mutable
 ----
 
 When something is mutable, it means the local variable can be changed.
@@ -65,6 +65,16 @@ mut ubyte y = 42 // this value is mutable
 int32 z     = x  // this will error, because x is not an int32
 ----
 
+Assignments *are expressions* and are typed in the form of:
+[source, xenon]
+----
+$LVALUE = $RVALUE
+----
+An LValue is an expression that could we written to.
+
+Examples of LValues include: `foo`, `*foo`, `foo.bar`.
+Values that are not LValues include: `7`, `foo + 1`, `*foo.bar + 7`
+
 If you wish to set something at the address of a pointer, you must use the `*` operator.
 
 [source, xenon]
@@ -76,29 +86,95 @@ int** array = someFunction()
 // or
 **array = 5
 ----
-All assignments must either be to a direct variable or a dereferenced pointer expression.
-`5 = 3` won't compile (as it should).
 
-Assignments are _not_ expressions, meaning that `a = b = 7` will not compile.
+Assignments are expressions, meaning `a = b = 7` will compile (though it is not encoraged)
 
 Identifiers that start with `_` are inserted by the compiler and are not allowed in the source code.
+
+All 4 math functions have been implemeonted for the int32 type: addition, subtraction, multiplication, and division,
+as well as addition and subtraction for pointer types.
+This addition respects the size of the underlying type and will properly increment the pointer so there is no overlap.
+Division is normal integer division, so `3 / 2` is `1`.
+
+The `==` and `!=` operators are also implemented, meaning equals and not equals respectivly.
+
+
+== Mutable and Immutable pointers
+
+Many problems in C arise from the fact that there is no compile-time semetic analysis
+to catch immutable pointers issues.
+
+Now, you might assume that an immutable pointer will always point to the same data.
+This could be very helpful, for example, returning the substring of a string by moving the pointer around.
+The issue with this is that no data in C is ever truly immutable as it's all either
+(A) popped off the stack, or (B) ``free``d after being ``malloc``ed, making it not truly immutable.
+
+Xenon solves this by not having immutable pointers, but instead "read-only pointers".
+The syntax is similar to a pointer, but instead of an `*` there is a `+`.
+This does not garentee that the data is immutable - but it doesn't let the caller write to it.
+
+It's like a type-level garentee that a given function doesn't mutate memory at the location passed in.
+For example, to get the length of a `char*`, no writing is needed.
+So instead, the type is specified as `char+`, and it'll work the same.
+
+This also allows you to make sure you know what functions mutate memory -
+as it needs to have a mutable pointer type.
+
+This is a feature that has been implemented successfully as of the latest commit.
+
 
 == Current Issues
 
 There are many things that you should be able to do that will crash with a NotImplementedException.
 Because writing these down will lead to them being quickly outdated,
-I'm only going to document shortcomings that will *not* crash the compiler.
+I'm only going to document shortcdivisionomings that will *not* crash the compiler.
 
 * Functions are not checked to make sure they return, nor is the return type checked.
-If functions do not return, the program will execute random instructions, and probably segfault.
+If functions do not return, the program will execute random instructions, and (most often) eventually segfault.
+This will probably be fixed by/in the 0.2.0.
+
 
 == Future plans
 
-* Structs
-* Immutable and mutable pointer types.
-**  The idea being that `int+` is an immutable int pointer, and `int*` is a mutable int pointer.
-    Though, being an immutable pointer does not mean the value is constant
-    (as this would have very limited use),
-    it instead just means the holder of the pointer is not allowed - and won't, ever - write to it.
-    There will be no way to cast an `int+` to an `int*` without an `@unsafeImmutablePointer` attribute
-    on the function.
+* Structs (being worked on now, planned for 0.2.0)
+
+Structs are just values shoved next to each other. For example:
+[source, xenon]
+----
+struct student {
+    int gpa
+    int age
+}
+----
+__I'll take a page out of my CS professor's book and quantify students by GPA as a joke__
+
+In memory and assembly, this will literally be 8 bytes of data, and each can be fetched invididually
+
+The difficulty with structs is twofold:
+
+1) proper lvalue support is needed to support complex struct member assigment. For example:
+
+[source, xenon]
+----
+struct a { b bar }
+struct b { int baz }
+a foo = // whatever
+foo.bar.baz = 7
+----
+The compiler has been refactored to allow for lvalues,
+but member-access has not yet been coded (as structs have not been coded yet)
+
+2) the A register cannot be used to propogate values from expressions.
+
+This is pretty simple. In the past, the expression `foo() + 1` could just do:
+
+[source, assembly]
+----
+call foo // return value is in the eax register
+add eax, eax
+// return value is left in the eax register
+----
+
+With structs that can be bigger than 8 bytes, this just doesn't work at all,
+so the value propogation system needs a revamp to support a different method of
+value passing.

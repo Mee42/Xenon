@@ -80,7 +80,7 @@ private fun parseBlock(partBlock: PartBlock, localVariables: List<LocalVariable>
             is PartWhileStatement -> {
                 val conditional = parseExpression(statement.conditional, localVariables + scopedLocalVariables, ast)
                 if(conditional.type != type("bool")) {
-                    throw ParseException("if statement conditional should be of type boolean, not of type ${conditional.type}")
+                    throw ParseException("while statement conditional should be of type boolean, not of type ${conditional.type}")
                 }
                 val block = parseBlock(statement.block, localVariables + scopedLocalVariables, ast)
                 IfStatement(conditional, block)
@@ -335,7 +335,6 @@ private fun parseExpressionPart(tokens: TokenQueue, precedence: Precedence = Pre
     }
     return left
 }
-
 
 fun TokenQueue.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurrounding: Boolean = false): List<Token> {
     val opening = this.remove().checkType(beginning, "must start with the proper opening token, ${beginning.name}")
