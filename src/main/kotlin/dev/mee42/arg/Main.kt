@@ -16,7 +16,6 @@ fun main(args: Array<String>) {
     val config = parseConfig(args.toList())
     globalConfig = config
     VerboseOption.CONFIG.println(config)
-
     // okay, now compile it
     val inputFile = File(globalConfig.target);
     if (!inputFile.exists()) error("target file \"$inputFile\" does not exist")

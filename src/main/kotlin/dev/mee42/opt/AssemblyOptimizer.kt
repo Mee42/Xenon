@@ -43,7 +43,6 @@ private val optimizations = optimizationSuite {
         runner { (a, b) ->
             if(a !is Mov) return@runner null
             if(b !is Push) return@runner null
-//            println("testing $a and $b")
             if(a.reg1 != SizedRegister(BIT64, Register.A).advanced())  return@runner null
             if(b.register != SizedRegister(BIT64, Register.A).advanced()) return@runner null
             listOf(Push(register = a.reg2))

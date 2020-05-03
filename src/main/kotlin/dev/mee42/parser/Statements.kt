@@ -1,7 +1,7 @@
 package dev.mee42.parser
 
 
-sealed class Statement{
+sealed class Statement {
     abstract val localVariableMaxBytes: Int
 }
 

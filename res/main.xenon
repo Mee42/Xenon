@@ -1,23 +1,21 @@
 
-struct element {
-    int value
-}
 
-struct list {
-    element elem
-    list* next
-}
 
 int main() {
-    mut val x = 7
-    mut val ptr = &x
-    val y = *ptr + 8
-    while x != 70 { x = x * 10 }
-    println(x)
-    println(y)
+    //mut val x = 7
+    //mut val ptr = &x
+	//*ptr = 8
+    //println(x)
+    println(foo(7, 8))
     return 0
 }
 
+
+int foo(int a, int b){
+    return a + b
+}
+
+// aotehusnaoehnoetsah
 
 
 

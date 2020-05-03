@@ -1,7 +1,7 @@
 = Xenon, a Native C-Like Language
 
 Xenon is a language that is similar to C.
-It compiles to basic assembly, which can be assembled to x64 instructions.
+It compiles to NASM assembly, which can be assembled to x64 instructions.
 
 Some helpful Links: link:help[man pages]. link:resources[Resources]
 
@@ -16,7 +16,6 @@ At the top level, there will be a list functions. Functions look like this:
     return *(array + i);
 }
 ----
-
 
 Here are how functions are defined:
 
@@ -171,7 +170,7 @@ This is pretty simple. In the past, the expression `foo() + 1` could just do:
 [source, assembly]
 ----
 call foo // return value is in the eax register
-add eax, eax
+incr eax
 // return value is left in the eax register
 ----
 

@@ -81,3 +81,9 @@ fun lex(lines: List<LabeledLine>): List<Token> {
     tokens.removeIf { it.type == TokenType.WHITESPACE }
     return tokens
 }
+
+
+// ( hello . world )
+
+// OPEN_PAREN IDENTIFIER DOT
+
