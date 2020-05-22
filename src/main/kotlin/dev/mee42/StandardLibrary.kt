@@ -475,9 +475,9 @@ data class CompiledFunction(
         return InitialFunction(
             name = name,
             id = id,
-            arguments = arguments,
+            arguments = arguments.map { it.asTyped<UntypedArgument, Argument>() },
             attributes = attributes,
-            returnType = returnType,
+            returnType = returnType.asTyped(),
             content = null)
     }
 }

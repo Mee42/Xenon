@@ -76,93 +76,10 @@ private fun <A> forAll(iterations: Int, generator: Generator<A>, block: (A) -> U
     generator.dynamic().take( iterations - generator.static().size).forEach(block)
 }
 
-/*
-class MathTests: StringSpec({
-    "int addition" {
-        val add = parse("""
-            function foo(int a, int b) int {
-                return a + b;
-            }
-        """.trimIndent())
-        forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
-            print("$a + $b: ")
-            run(TypeEnum.of("int"), add, a, b).toInt() shouldBe a + b
-        }
-    }
-    "int subtraction" {
-        val sub = parse("""
-            function foo(int a, int b) int {
-                return a - b;
-            }
-        """.trimIndent())
-        forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
-            print("$a - $b: ")
-            run(TypeEnum.of("int"),sub, a, b).toInt() shouldBe a - b
-        }
-    }
-    "int multiplication" {
-        val mult = parse("""
-            function foo(int a, int b) int {
-                return a * b;
-            }
-        """.trimIndent())
-        forAll(10, smallInts.zip(smallInts)) { (a: Int, b: Int) ->
-            print("$a * $b: ")
-            run(TypeEnum.of("int"), mult, a, b).toInt() shouldBe a * b
-        }
-    }
-    "unsigned division" {
-        val div = parse("""
-            function foo(uint a, uint b) uint {
-                return a / b;
-            }
-        """.trimIndent())
-        forAll(10, smallPositiveInts.zip(smallPositiveInts.filter { it != 0 })) { (a: Int, b: Int) ->
-            print("$a / $b: ")
-            run(TypeEnum.of("uint"), div, a, b).toInt() shouldBe a / b
-        } // unsigned division
-    }
-    "signed division" {
-        val div = parse("""
-            function foo(long a, long b) long {
-                return a / b;
-            }
-        """.trimIndent())
-        forAll(10, smallInts.zip(smallInts.filter { it != 0 })) { (a,b) ->
-            print("$a / $b: ")
-            run(TypeEnum.of("long"), div, a, b).toInt() shouldBe a / b
-        }
-    }
-    "adding 3 elements" {
-        val add = parse("""
-            function foo(int a, int b, int c) int {
-                return a + b + c;
-            }
-        """.trimIndent())
-        forAll(10, smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
-            print("$a + $b + $c: ")
-            run(TypeEnum.of("int"), add, a, b, c).toInt() shouldBe a + b + c
-        }
-    }
-    "add and multiply" {
-
-        val addAndMult = parse("""
-            function foo(int a, int b, int c) int {
-                return (a * b) + c;
-            }
-        """.trimIndent())
-        forAll(10,  smallInts.zip(smallInts).zip3(smallInts)) { (a, b, c) ->
-            print("$a * $b + $c: ")
-            run(TypeEnum.of("int"), addAndMult, a, b, c).toInt() shouldBe a * b + c
-        }
-    }
-
-})
-*/
 class MainTests: StringSpec({
     "basic program compiles" {
         run(TypeEnum.of("int"), parse("""
-            function foo() int {
+            int foo() {
                 return 7;
             }
         """.trimIndent())).toInt() shouldBe 7

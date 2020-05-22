@@ -1,12 +1,10 @@
 
-
+struct number {
+     int value
+}
 
 int main() {
-    //mut val x = 7
-    //mut val ptr = &x
-	//*ptr = 8
-    //println(x)
-    println(foo(7, 8))
+    println(7 + 8)
     return 0
 }
 

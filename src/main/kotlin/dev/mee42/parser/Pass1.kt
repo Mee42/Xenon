@@ -7,14 +7,52 @@ import dev.mee42.splitBy
 import java.util.*
 
 
-data class Pass0Function(val name: String,
-                         val arguments: List<Pass0Argument>,
-                         val attributes: List<String>,
-                         val returnType: List<Token>,
-                         val content: List<Token>,
-                         val id: String) {
-    data class Pass0Argument(val name: String, val type: List<Token>, val identifierToken: Token)
+
+sealed class PossiblyTyped<A, B> {
+    class Untyped<A>(val a: A): PossiblyTyped<A, Nothing>()
+    class Typed<B>(val b: B): PossiblyTyped<Nothing, B>()
 }
+
+fun <A, B> PossiblyTyped<A, B>.untyped(): A {
+    return when(this){
+        is PossiblyTyped.Untyped -> this.a
+        is PossiblyTyped.Typed -> error("no")
+    }
+}
+fun <A, B> PossiblyTyped<A, B>.typed(): B {
+    return when(this){
+        is PossiblyTyped.Untyped -> error("no")
+        is PossiblyTyped.Typed -> this.b
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+fun <A,B> B.asTyped(): PossiblyTyped<A,B> = PossiblyTyped.Typed(this) as PossiblyTyped<A, B>
+@Suppress("UNCHECKED_CAST")
+fun <A,B> A.asUntyped(): PossiblyTyped<A,B> = PossiblyTyped.Untyped(this) as PossiblyTyped<A, B>
+
+
+
+class UntypedArgument(val name: String,val type: List<Token>, val identifierToken: Token )
+data class Argument(val name: String, val type: Type)
+
+data class InitialFunction(
+        val name: String,
+        val arguments: List<PossiblyTyped<UntypedArgument, Argument>>,
+        val attributes: List<String>,
+        val content: List<Token>?,
+        val id: String,
+        val returnType: PossiblyTyped<List<Token>,Type>
+) {
+    companion object {
+        var i = 0
+        fun genRandomID(): String {
+            return (++i).toString()
+        }
+    }
+    val identifier: String = name + id
+}
+
 
 class InitialStruct(val name: String, val fields: List<InitialField>) {
     class InitialField(val name: String, val type: List<Token>)
@@ -23,7 +61,7 @@ class InitialStruct(val name: String, val fields: List<InitialField>) {
 fun parsePass1(tokens: List<Token>): InitialAST {
     // so, the first token needs to a starterToken
     val queue = TokenQueue(ArrayDeque(tokens))
-    val initialFunctions = mutableListOf<Pass0Function>()
+    val initialFunctions = mutableListOf<InitialFunction>()
     val initialStructs = mutableListOf<InitialStruct>()
     while(queue.isNotEmpty()) {
         val start = queue.peek()
@@ -39,24 +77,23 @@ fun parsePass1(tokens: List<Token>): InitialAST {
     }
     // okay, now we can parse all the struct types
     val structs = parseStructTypes(initialStructs)
-//    return InitialAST(functions = functions,structs = structs))
     val functions = initialFunctions.map { typeFunction(it, structs) }
     return InitialAST(functions = functions, structs = structs)
 }
 
-fun typeFunction(f: Pass0Function, structs: List<Struct>): InitialFunction {
+fun typeFunction(f: InitialFunction, structs: List<Struct>): InitialFunction {
     return InitialFunction(
             name = f.name,
-            arguments = f.arguments.map { Argument(it.name, parseType(it.type, structs)) },
+            arguments = f.arguments.map { Argument(it.untyped().name, parseType(it.untyped().type, structs)).asTyped<UntypedArgument, Argument>() },
             attributes = f.attributes,
             content = f.content,
             id = f.id,
-            returnType = parseType(f.returnType, structs)
+            returnType = parseType(f.returnType.untyped(), structs).asTyped()
     )
 }
 
 
-private fun initialPassParseFunction(tokens: TokenQueue): Pass0Function {
+private fun initialPassParseFunction(tokens: TokenQueue): InitialFunction {
     // we already consumer the function keyword, lol
     // lets take all the attributes
     val attributes = tokens.removeWhile { it.type == TokenType.ATTRIBUTE }
@@ -85,29 +122,21 @@ private fun initialPassParseFunction(tokens: TokenQueue): Pass0Function {
 
     val block: List<Token> = tokens.takeAllNestedIn(beginning = TokenType.OPEN_BRACKET, end = TokenType.CLOSE_BRACKET, includeSurrounding = true)
     // block contains the {} but they are removed from the queue
-    if(functionName == "main" && arguments.isEmpty()){
-        // it's the real name
-        return Pass0Function(name = functionName,
-            arguments = parsedArguments,
+
+    val id = if(functionName == "main" && arguments.isEmpty()) "" else InitialFunction.genRandomID()
+    return InitialFunction(name = functionName,
+            arguments = parsedArguments.map { it.asUntyped<UntypedArgument, Argument>() },
             content = block,
-            returnType = returnType,
+            returnType = returnType.asUntyped(),
             attributes = attributes.map(Token::content),
-            id = "")
-    } else {
-        return Pass0Function(name = functionName,
-            arguments = parsedArguments,
-            content = block,
-            returnType = returnType,
-            attributes = attributes.map(Token::content),
-            id = InitialFunction.genRandomID())
-    }
+            id = id)
 }
-private fun parseArgument(tokens: List<Token>): Pass0Function.Pass0Argument {
+private fun parseArgument(tokens: List<Token>): UntypedArgument {
     // ALL TOKENS MUST BE IDENTIFIERS
     if(tokens.isEmpty()) error("whatT")
     if(tokens.size == 1) throw ParseException("missing type", tokens[0])
     val identifier = tokens.last().checkType(TokenType.IDENTIFIER, "must be an identifier")
-    return Pass0Function.Pass0Argument(identifier.content, tokens.dropLast(1), identifierToken = identifier)
+    return UntypedArgument(identifier.content, tokens.dropLast(1), identifierToken = identifier)
 }
 
 
@@ -146,6 +175,10 @@ fun parseInitialStruct(queue: TokenQueue): InitialStruct {
     }
     return InitialStruct(structName, fields)
 }
+
+
+
+
 
 fun parseStructTypes(initialStructs: List<InitialStruct>): List<Struct> {
     val structs = mutableListOf<MutableStruct>()

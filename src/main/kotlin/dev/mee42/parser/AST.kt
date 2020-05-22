@@ -10,8 +10,6 @@ data class AST(val functions: List<Function>, val structs: List<Struct>) {
     }
 }
 
-
-
 fun printAST(ast: AST) {
     println("ast:")
     for(function in ast.functions) {
@@ -19,7 +17,6 @@ fun printAST(ast: AST) {
         printAST(function)
     }
 }
-
 fun printAST(function: Function) {
     println(function.returnType.toString() + " " +
             function.name +
@@ -29,8 +26,6 @@ fun printAST(function: Function) {
         is AssemblyFunction -> println("-- function implementation internal")
     }
 }
-
-
 fun printAST(statement: Statement, prepend: String, indent: String) {
     when(statement) {
         is Block -> {

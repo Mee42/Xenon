@@ -21,38 +21,25 @@ private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function
     if(it.content == null) {
         // it's an assembly function
         return AssemblyFunction(
-            name = it.name, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes
+            name = it.name, returnType = it.returnType.typed(), arguments = it.arguments.map { it.typed() }, id = it.id, attributes = it.attributes
         )
     }
     if(it.content.first().type != OPEN_BRACKET || it.content.last().type != CLOSE_BRACKET) {
         throw InternalCompilerException(it.content.toString())
     }
     // this is a block, it has both the open and close brackets as tokens
-    val arguments = it.arguments.map { LocalVariable(it.name, it.type, isFinal = false) }
+    val arguments = it.arguments.map { LocalVariable(it.typed().name, it.typed().type, isFinal = false) }
     val partBlock = parsePartBlock(TokenQueue(ArrayDeque(it.content)), initialAST)
     val block = parseBlock(partBlock, arguments, initialAST)
-    return XenonFunction(name = it.name, content = block, returnType = it.returnType, arguments = it.arguments, id = it.id, attributes = it.attributes)
+    return XenonFunction(
+            name = it.name,
+            content = block,
+            returnType = it.returnType.typed(),
+            arguments = it.arguments.map { it.typed() },
+            id = it.id,
+            attributes = it.attributes)
 }
 
-/** this assumes that tokens starts with a { and ends the block with a } */
-//private fun parseBlock(tokens: TokenQueue, initialAST: InitialAST, localVariables: List<LocalVariable>): Block {
-//    tokens.remove().checkType(OPEN_BRACKET,"parseBlock expects token stream to start with an opening bracket")
-//    val statements = mutableListOf<Statement>()
-//    val scopedLocalVariables = mutableListOf<LocalVariable>()
-//    while(tokens.peek().type != CLOSE_BRACKET) {
-//        val statement = parseStatement(tokens, initialAST, localVariables + scopedLocalVariables)
-//        if(statement is DeclareVariableStatement){
-//            scopedLocalVariables.add(LocalVariable(
-//                name = statement.variableName,
-//                type = statement.expression.type,
-//                isFinal = statement.final
-//            ))
-//        }
-//        statements.add(statement)
-//    }
-//    tokens.remove().checkType(CLOSE_BRACKET,"illegal state")
-//    return Block(statements)
-//}
 
 private fun parseBlock(partBlock: PartBlock, localVariables: List<LocalVariable>, ast: InitialAST): Block {
     val scopedLocalVariables = mutableListOf<LocalVariable>()
@@ -109,7 +96,6 @@ private fun parseExpression(expression: PartExpression, localVariables: List<Loc
         is PrefixOperatorExpression -> when(expression.prefix){
             "!" -> TODO()
             "-" -> TODO()
-
             "*" -> DereferencePointerExpression(parseExpression(expression.expression, localVariables, ast))
             "&" -> {
                 val expr = parseExpression(expression.expression, localVariables, ast)
@@ -145,14 +131,14 @@ private fun parseExpression(expression: PartExpression, localVariables: List<Loc
             val possibleFunctions = ast.functions.filter { it.name == identifier }
             if(possibleFunctions.isEmpty()) throw ParseException("can't find function \"$identifier\"")
             val realFunction = possibleFunctions.firstOrNull { f ->
-                f.arguments.size == arguments.size && f.arguments.map { it.type } == arguments.map { it.type } }
+                f.arguments.size == arguments.size && f.arguments.map { it.typed().type } == arguments.map { it.type } }
                     ?: error("can't find function with type signature " + arguments.joinToString(", ", "(", ")") { it.type.toString() } +
                             "\nPossible alternitives with the same name:\n" + possibleFunctions.joinToString("\n","","") { f ->
-                        f.name + " " + f.arguments.joinToString(", ","(",")") { it.type.toString() }
+                        f.name + " " + f.arguments.joinToString(", ","(",")") { it.typed().type.toString() }
                     })
             FunctionCallExpression(
                     functionIdentifier = realFunction.identifier,
-                    returnType = realFunction.returnType,
+                    returnType = realFunction.returnType.typed(),
                     arguments = arguments
             )
         }
@@ -219,6 +205,11 @@ private fun parsePartStatement(tokens: TokenQueue, initialAST: InitialAST): Part
 }
 
 
+
+
+
+
+// ======= parse part ========
 sealed class PartStatement
 data class PartIfStatement(val conditional: PartExpression, val block: PartBlock): PartStatement()
 data class PartWhileStatement(val conditional: PartExpression, val block: PartBlock): PartStatement()
@@ -246,7 +237,6 @@ private fun parser(type: TokenType, precedence: Precedence, runner: (TokenQueue,
         InfixParser(type, runner, precedence)
 private fun parser(type: TokenType, runner: (TokenQueue, Token) -> PartExpression = ::prefixOp) =
         PrefixParser(type, runner)
-
 
 fun prefixOp(queue: TokenQueue, token: Token) =
         PrefixOperatorExpression(token.content, parseExpressionPart(queue, Precedence.PREFIX))
@@ -294,7 +284,7 @@ private val infixParserMap = listOf(
                     }
                 }
             }
-            println("arguments: $arguments")
+//            println("arguments: $arguments")
             FunctionCallPartExpression(left, arguments)
         }
 )
@@ -359,19 +349,4 @@ fun TokenQueue.takeAllNestedIn(beginning: TokenType, end: TokenType, includeSurr
     if(includeSurrounding) list.add(ending)
 
     return list
-}
-
-
-fun main() {
-    val scan = Scanner(System.`in`)
-    while(true) {
-        print("> ")
-        System.out.flush()
-        val input = scan.nextLine().replace("\\n","\n")
-        val tokens = TokenQueue(ArrayDeque(lex(listOf(LabeledLine(input, -1, "tmp")))))
-        val expr = parseExpressionPart(tokens)
-        println(expr)
-        println(expr.str)
-        println("left over: $tokens")
-    }
 }

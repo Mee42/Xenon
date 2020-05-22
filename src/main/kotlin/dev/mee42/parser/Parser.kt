@@ -4,7 +4,6 @@ import dev.mee42.CompilerException
 import dev.mee42.lexer.Token
 import dev.mee42.lexer.TokenException
 import dev.mee42.lexer.TokenType
-import dev.mee42.splitBy
 
 
 class ParseException private constructor(): CompilerException() {
