@@ -1,15 +1,22 @@
 
-
+struct number_container {
+    long index
+}
 struct number {
     int number
+    number_container cont
 }
 
 
 int main() {
     //val x = 8
     val x = number{}
-//    x.number = 7
-//    println(x.number)
+    val xValPtr = &x.number
+    *xValPtr = 7
+    x.cont.index = 101l
+    println(x.number)
+    println(x.cont.index)
+
 
     return 0
 

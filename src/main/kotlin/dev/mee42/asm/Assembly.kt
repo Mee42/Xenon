@@ -70,7 +70,7 @@ sealed class AssemblyInstruction(strIn: String) {
     data class Jump(val to: String): AssemblyInstruction("jmp $to")
     data class ConditionalJump(val conditional: ComparisonOperator, val label: Label): AssemblyInstruction("${conditional.jump} ${label.name}")
     data class Comment(val content: String): AssemblyInstruction("; $content")
-    class CommentedLine(val line: AssemblyInstruction, val comment: String): AssemblyInstruction("OHNO") {
+    class CommentedLine(val line: AssemblyInstruction, comment: String): AssemblyInstruction("OHNO") {
         override val str: String = "$line ; $comment"
         override fun equals(other: Any?): Boolean {
             return other is CommentedLine && line == other.line

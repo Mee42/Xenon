@@ -219,6 +219,15 @@ fun parseStructTypes(initialStructs: List<InitialStruct>): List<Struct> {
 
 
 interface Struct {
+    fun offsetOf(member: String): Int {
+        var off = 0
+        for(field in fields){
+            if(field.name == member) return off
+            off += field.type.size.bytes
+        }
+        error("can't find field $member")
+    }
+
     val name: String
     val fields: List<Field>
     val type: StructType

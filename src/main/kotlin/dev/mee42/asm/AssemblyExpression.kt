@@ -49,17 +49,29 @@ fun assembleLValue(expression: LValueExpression, s: ExpressionState) = buildAsse
         is DereferencePointerExpression -> {
             this += assembleExpression(expression.pointerExpression, s)
         }
-        is MemberAccessExpression -> TODO("no structs smh") // FIXME write this next
+        is MemberAccessExpression -> {
+            this += assembleExpression(expression.struct, s)
+            val offset =  (expression.struct.type as StructType).struct.offsetOf(expression.member)
+            // add the offset lmao
+            this += AssemblyInstruction.Add(
+                    SizedRegister(RegisterSize.BIT64, Register.A).advanced(),
+                    StaticValueAdvancedRegister(offset, RegisterSize.BIT64)
+            )
+        }
     }
 }
 fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: Boolean = true): Assembly = buildAssembly {
     when(expression) {
         is VariableAccessExpression -> {
             val variable = s.variableBindings.firstOrNull { it.name == expression.variableName } ?: error("can't find variable ${expression.variableName}")
-            this += AssemblyInstruction.Mov(
-                    reg1 = SizedRegister(variable.register.size, Register.A).advanced(),
-                    reg2 = variable.register
-            ).comment( "pulling variable ${expression.variableName}")
+            if(variable.type is StructType) {
+                this += AssemblyInstruction.Custom("lea rax, " + variable.register.toStringNoSize())
+            } else {
+                this += AssemblyInstruction.Mov(
+                        reg1 = SizedRegister(variable.register.size, Register.A).advanced(),
+                        reg2 = variable.register
+                ).comment("pulling variable ${expression.variableName}")
+            }
         }
         is DereferencePointerExpression -> {
             if(expression.pointerExpression.type !is PointerType) error("assertion failed")
@@ -78,7 +90,7 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
             }
         }
         is BlockExpression -> {
-            assembleBlock(s.variableBindings, s.ast, Block(expression.statements), s.topLocal, s.returnInstructions)
+            assembleBlock(s.variableBindings, s.ast, Block(expression.statements), s.topLocal, s.structLocal,  s.returnInstructions)
 
         }
         is RefExpression -> {
@@ -102,7 +114,7 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
         }
         is AssigmentExpression -> {
             this += assembleLValue(expression.setLocation, s)
-            this += AssemblyInstruction.Push(Register.A)
+            this += AssemblyInstruction.Custom("push rax ; push the rax value")
             this += assembleExpression(expression.value, s)
             this += AssemblyInstruction.Pop(Register.B)
             // what's the size?
@@ -130,8 +142,32 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
                     reg2 = StaticValueAdvancedRegister(argumentSize, RegisterSize.BIT64)
             )
         }
-        is StructInitExpression -> TODO("no structs smh")
-        is MemberAccessExpression -> TODO("no structs smh")
+        is MemberAccessExpression -> {
+            this += assembleExpression(expression.struct, s)
+            val offset =  (expression.struct.type as StructType).struct.offsetOf(expression.member)
+            // add the offset lmao
+            this += AssemblyInstruction.Add(
+                    SizedRegister(RegisterSize.BIT64, Register.A).advanced(),
+                    StaticValueAdvancedRegister(offset, RegisterSize.BIT64)
+            )
+            if(expression.type !is StructType) {
+                // it's expected in the register, dummy
+                this += AssemblyInstruction.Mov(
+                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.A), false, RegisterSize.BIT64),
+                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.A), true, RegisterSize.BIT64)
+                )
+            }
+        }
+        is StructInitExpression -> {
+            // okay great, so lets just allocate some memory into the structLocal register
+             // IMPROVE zero memory on init (lol)
+            // at the moment though, fuck what memory we use
+
+            // outputs the memory address that the struct exists at, which is the structLocal
+            this += AssemblyInstruction.Custom("lea rax, " +
+                    AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, RegisterSize.BIT64, s.structLocal).toStringNoSize()
+            )
+        }
 
     }
 }

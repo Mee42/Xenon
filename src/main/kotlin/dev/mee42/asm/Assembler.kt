@@ -78,7 +78,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
         this += AssemblyInstruction.Pop(Register.BP)
         this += AssemblyInstruction.Ret
     }
-    this += assembleBlock(variableBindings, ast, function.content, 0 - function.content.maxStructSize, function.content.maxStructSize, returnInstructions)
+    this += assembleBlock(variableBindings, ast, function.content, 0 - function.content.maxStructSize,0 - function.content.maxStructSize, returnInstructions)
 }
 
 
@@ -111,16 +111,25 @@ fun assembleBlock(variableBindings: List<Variable>,
                 val size = expression.type.size
                 localVariableLocation -= size.bytes
 
-                val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size.fitToRegister(), localVariableLocation)
-                this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
+                val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, if(size.canFitInRegister) size.fitToRegister() else RegisterSize.BIT64, localVariableLocation)
+
+                this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister. size: " + size.bytes)
                 this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, structLocal, returnInstructions)
                 localVariables.add(Variable(
                     name = statement.variableName,
                     register = variableRegister,
                     type = expression.type))
-                this += AssemblyInstruction.Mov(
-                    reg1 = variableRegister,
-                    reg2 = SizedRegister(size.fitToRegister(), Register.A).advanced()).zeroIfNeeded()
+                if(expression.type is StructType) {
+                    this += AssemblyInstruction.Custom("mov rcx, " + size.bytes) // this many bytes
+                    this += AssemblyInstruction.Custom("mov rsi, rax")
+//                    val a = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP),true,  RegisterSize.BIT64, structLocal)
+                    this += AssemblyInstruction.Custom("lea rdi, " + variableRegister.toStringNoSize())
+                    this += AssemblyInstruction.Custom("rep movsb")
+                } else {
+                    this += AssemblyInstruction.Mov(
+                            reg1 = variableRegister,
+                            reg2 = SizedRegister(size.fitToRegister(), Register.A).advanced()).zeroIfNeeded()
+                }
             }
             is IfStatement -> {
                 // [conditional]
