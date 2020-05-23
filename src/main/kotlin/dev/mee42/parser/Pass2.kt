@@ -142,6 +142,15 @@ private fun parseExpression(expression: PartExpression, localVariables: List<Loc
                     arguments = arguments
             )
         }
+        is PartStructInitExpression -> {
+            val struct = ast.structs.firstOrNull { it.name == expression.structName }
+                    ?: error("can't find struct with the name of of ${expression.structName}")
+            StructInitExpression(struct.type)
+        }
+        is PartMemberAccessExpression -> {
+            val struct = parseExpression(expression.struct, localVariables, ast)
+            MemberAccessExpression(struct, expression.memberName)
+        }
     }
 }
 
@@ -226,6 +235,9 @@ data class InfixOperatorExpression(val operator: String, val left: PartExpressio
 data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
         PartExpression(value.str + arguments.joinToString(",","(", ")") { it.str } )
 
+data class PartStructInitExpression(val structName: String): PartExpression("${structName}{}")
+data class PartMemberAccessExpression(val struct: PartExpression, val memberName: String): PartExpression("($struct).$memberName")
+
 fun parseInfixOp(queue: TokenQueue, left: PartExpression, token: Token, precedence: Precedence) =
         InfixOperatorExpression(token.content, left, parseExpressionPart(queue, precedence.oneLess()))
 
@@ -264,6 +276,15 @@ private val infixParserMap = listOf(
         parser(ASSIGNMENT, Precedence.ASSIGNMENT) { queue ,left, token, _ ->
             InfixOperatorExpression(token.content, left, parseExpressionPart(queue, Precedence.NONE))
         },
+        parser(OPEN_BRACKET, Precedence.STRUCT_INIT) { queue, left, _, _ ->
+            queue.remove().checkType(CLOSE_BRACKET, "expecting close bracket")
+            if(left !is IdentifierPartExpression) error("expecting an identifier on the the left of the thing")
+            PartStructInitExpression(left.id)
+        },
+        parser(DOT, Precedence.STRUCT_MEMBER_ACCESS) { queue, left, _, _ ->
+            val member = queue.remove().checkType(IDENTIFIER, "excpeting an identifier next").content
+            PartMemberAccessExpression(left, member)
+        },
         parser(OPEN_PARENTHESES, Precedence.CALL) { queue, left, token, _ ->
             val arguments = mutableListOf<PartExpression>()
             token.checkType(OPEN_PARENTHESES, "this better be an open parenth")
@@ -289,21 +310,21 @@ private val infixParserMap = listOf(
         }
 )
 
-class Precedence(private val order: Int) {
-    companion object {
-        val NONE = Precedence(0)
-        val ASSIGNMENT = Precedence(1)
-        val CONDITIONAL = Precedence(2)
-        val SUM = Precedence(3)
-        val PRODUCT = Precedence(4)
-        val PREFIX = Precedence(5)
-        val CALL = Precedence(6)
-    }
-    operator fun compareTo(other: Precedence):Int {
-        return this.order.compareTo(other.order)
-    }
+enum class Precedence(val order: Int) {
+    NONE(0),
+    ASSIGNMENT(1),
+    CONDITIONAL(2),
+    SUM(3),
+    PRODUCT(4),
+    PREFIX(5),
+    CALL(6),
+    STRUCT_INIT(6),
+    STRUCT_MEMBER_ACCESS(7)
+    ;
+
     fun oneLess():Precedence {
-        return Precedence(if(order == 0) 0 else order - 1)
+        val x = if(order == 0) 0 else order - 1
+        return values().first { it.order == x }
     }
 }
 
@@ -318,7 +339,7 @@ private fun parseExpressionPart(tokens: TokenQueue, precedence: Precedence = Pre
         if (newline.type == NEWLINE) return left
         val peek = tokens.peek()
         // if the precedence is >= whatever the precedence of the next infix expression would be
-        if(precedence >= infixParserMap.firstOrNull { peek.type == it.type }?.precedence ?: Precedence.NONE) break
+        if(precedence.order >= (infixParserMap.firstOrNull { peek.type == it.type }?.precedence ?: Precedence.NONE).order) break
         val infixParser = infixParserMap.firstOrNull { it.type == peek.type } ?: return left
         tokens.remove() // remove the token
         left = infixParser.runner(tokens, left, peek, infixParser.precedence /*might be 'precedence'*/)

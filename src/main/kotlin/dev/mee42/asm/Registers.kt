@@ -4,6 +4,10 @@ import dev.mee42.asm.RegisterSize.*
 
 class ValueSize(val bytes: Int) {
     val canFitInRegister = bytes <= 8
+    fun toRegisterSize(): RegisterSize {
+        if(!canFitInRegister) error("dumb")
+        return values().first { it.size == this }
+    }
 }
 
 enum class RegisterSize(val size: ValueSize, val asmName: String) {

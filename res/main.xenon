@@ -1,19 +1,17 @@
 
-struct number {
-     int value
+int foo(int a, int b) {
+    return a - b
 }
 
 int main() {
-    println(7 + 8)
+    //val x = 8
+    println(foo(100, 8))
     return 0
 }
 
 
-int foo(int a, int b){
-    return a + b
-}
 
-// aotehusnaoehnoetsah
+
 
 
 

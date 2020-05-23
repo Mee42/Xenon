@@ -6,8 +6,7 @@ sealed class LValueExpression(type: Type): Expression(type) {
     abstract fun isMutableLValue(): Boolean
 }
 
-sealed class Expression(open val type: Type) {
-}
+sealed class Expression(val type: Type)
 
 class VariableAccessExpression(val variableName: String, type: Type, val isMutable: Boolean): LValueExpression(type){
     override fun isMutableLValue(): Boolean {
@@ -62,3 +61,20 @@ data class AssigmentExpression(val setLocation: LValueExpression, val value: Exp
 data class FunctionCallExpression(val arguments: List<Expression>,
                                   val functionIdentifier: String,
                                   val returnType: Type): Expression(returnType)
+
+data class StructInitExpression(val structType: StructType): Expression(structType)
+
+class MemberAccessExpression(val struct: Expression, val member: String, type: Type): LValueExpression(type) {
+    companion object {
+        operator fun invoke(struct: Expression, member: String): MemberAccessExpression {
+            val t = (struct.type as StructType).struct
+            val f = t.fields.firstOrNull { it.name == member } ?: error("struct ${t.name} has no member $member")
+            val exprType = f.type
+            return MemberAccessExpression(struct, member, exprType)
+        }
+    }
+
+    override fun isMutableLValue(): Boolean {
+        return true // TODO make struct fields mutable/immutable. For now, they are all mutable
+    }
+}

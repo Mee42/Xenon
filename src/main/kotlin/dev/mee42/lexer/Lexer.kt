@@ -49,9 +49,6 @@ enum class TokenType(val regex: Regex) {
     NOT_EQUALS("!="),
     ASSIGNMENT("="),
     NOT("!")
-
-
-//    @Language("RegExp") OPERATOR  (quote = false, str = """[+\-/><!*=%]+""")
     ;
     constructor(str: String, quote: Boolean = true): this(Regex("^" + if(quote) Regex.escape(str) else str))
 }

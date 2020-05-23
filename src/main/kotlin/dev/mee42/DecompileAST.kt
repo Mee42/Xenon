@@ -76,5 +76,7 @@ fun decompile(expression: Expression, indent: Indent): String {
         is TypelessBlock -> "t{" + expression.expressions.joinToString(", ", "","") { decompile(it, indent.more()) } + "}"
         is RefExpression -> "&${decompile(expression.lvalue, indent.more())}"
         is AssigmentExpression -> decompile(expression.setLocation, indent.more()) + " = " + decompile(expression.value, indent.more())
+        is StructInitExpression -> expression.structType.struct.name + "{}"
+        is MemberAccessExpression -> decompile(expression.struct, indent.more()) + "." + expression.member
     }
 }
