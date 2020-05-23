@@ -51,14 +51,15 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
                else this + 16 - (this % 16)
     }
 
-    var position = function.arguments.sumBy { it.type.size.bytes }.plus(8)
+    var position = function.arguments.sumBy { it.type.size.bytes }.plus(12)
     function.arguments.forEachIndexed { i, it ->
         val register = stackPointerRegister(position, it.type.size.fitToRegister())
-        variableBindings.add(Variable(it.name, it.type, register))
         position -= it.type.size.bytes
+        variableBindings.add(Variable(it.name, it.type, register))
         this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
     }
-    val max = function.content.localVariableMaxBytes
+
+    val max = function.content.localVariableMaxBytes + function.content.maxStructSize
     val localVariableSize = max.padUpTo16()
     this += AssemblyInstruction.Push(Register.BP) // push rbp so we don't lose it when we return
     this += AssemblyInstruction.Mov(
@@ -77,7 +78,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
         this += AssemblyInstruction.Pop(Register.BP)
         this += AssemblyInstruction.Ret
     }
-    this += assembleBlock(variableBindings, ast, function.content, 0, returnInstructions)
+    this += assembleBlock(variableBindings, ast, function.content, 0 - function.content.maxStructSize, function.content.maxStructSize, returnInstructions)
 }
 
 
@@ -86,6 +87,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                           ast: AST,
                           block: Block,
                           topLocal: Int,
+                          structLocal: Int,
                           returnInstructions: List<AssemblyInstruction>): Assembly  = buildAssembly {
     val localVariables = mutableListOf<Variable>()
     var localVariableLocation = topLocal
@@ -94,14 +96,14 @@ fun assembleBlock(variableBindings: List<Variable>,
         when (statement) {
             is ReturnStatement -> {
                 val expression = statement.expression
-                this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, structLocal, returnInstructions)
                 this += returnInstructions
             }
             is ExpressionStatement -> {
-                this += assembleExpression(variableBindings + localVariables, ast, statement.expression, localVariableLocation, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.expression, localVariableLocation, structLocal, returnInstructions)
             }
             is Block -> {
-                this += assembleBlock(variableBindings + localVariables, ast, statement, localVariableLocation, returnInstructions)
+                this += assembleBlock(variableBindings + localVariables, ast, statement, localVariableLocation, structLocal, returnInstructions)
             }
             NoOpStatement -> this += AssemblyInstruction.Nop
             is DeclareVariableStatement -> {
@@ -111,7 +113,7 @@ fun assembleBlock(variableBindings: List<Variable>,
 
                 val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, size.fitToRegister(), localVariableLocation)
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister")
-                this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, structLocal, returnInstructions)
                 localVariables.add(Variable(
                     name = statement.variableName,
                     register = variableRegister,
@@ -126,7 +128,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                 //    block
                 // end:
 
-                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, localVariableLocation, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, localVariableLocation,structLocal, returnInstructions)
                 this += AssemblyInstruction.Compare(
                     SizedRegister(RegisterSize.BIT8, Register.A),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)
@@ -134,20 +136,20 @@ fun assembleBlock(variableBindings: List<Variable>,
                 val endingLabel = AssemblyInstruction.Label.next()
                 // jump to the end if the result is true (ie, if the condition results in
                 this += AssemblyInstruction.ConditionalJump(ComparisonOperator.EQUALS, endingLabel)
-                this += assembleBlock(variableBindings + localVariables, ast, statement.block, localVariableLocation, returnInstructions)
+                this += assembleBlock(variableBindings + localVariables, ast, statement.block, localVariableLocation,structLocal, returnInstructions)
                 this += endingLabel
             }
             is WhileStatement -> {
                 val lstart = AssemblyInstruction.Label.next()
                 val lend = AssemblyInstruction.Label.next()
                 this += lstart
-                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, localVariableLocation, returnInstructions)
+                this += assembleExpression(variableBindings + localVariables, ast, statement.conditional, localVariableLocation,structLocal, returnInstructions)
                 this += AssemblyInstruction.Compare(
                     SizedRegister(RegisterSize.BIT8, Register.A),
                     StaticValueAdvancedRegister(0, RegisterSize.BIT8)
                 )
                 this += AssemblyInstruction.ConditionalJump(ComparisonOperator.EQUALS, lend)
-                this += assembleBlock(variableBindings + localVariables, ast, statement.block, localVariableLocation, returnInstructions)
+                this += assembleBlock(variableBindings + localVariables, ast, statement.block, localVariableLocation,structLocal, returnInstructions)
                 this += AssemblyInstruction.Jump(lstart.name)
                 this += lend
             }
@@ -178,8 +180,9 @@ fun assembleBlock(variableBindings: List<Variable>,
     foo(int a, int b)
  it should be
     B: 8
-    a: [rbp + 8 + 8]     [rbp + 16]
-    b: [rbp + 8 + 8 - 4] [rbp + 12]
+    a: [rbp + 16 + B - 4]  [rbp + 20]
+    b: [rbp + B + 8]       [rbp + 16]
+
 
 
 */

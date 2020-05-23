@@ -37,6 +37,7 @@ class AssemblyBuilder {
 data class ExpressionState(val variableBindings: List<Variable>,
                            val ast: AST,
                            val topLocal: Int,
+                           val structLocal: Int,
                            val returnInstructions: List<AssemblyInstruction>)
 
 fun assembleLValue(expression: LValueExpression, s: ExpressionState) = buildAssembly {
@@ -48,7 +49,7 @@ fun assembleLValue(expression: LValueExpression, s: ExpressionState) = buildAsse
         is DereferencePointerExpression -> {
             this += assembleExpression(expression.pointerExpression, s)
         }
-        is MemberAccessExpression -> TODO("no structs smh")
+        is MemberAccessExpression -> TODO("no structs smh") // FIXME write this next
     }
 }
 fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: Boolean = true): Assembly = buildAssembly {
@@ -111,7 +112,6 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
             )
         }
         is FunctionCallExpression -> {
-            // TODO NEXT make the things properly fit onto the stack. Working on that now
             for(expr in expression.arguments){
                 this += assembleExpression(expr, s)
 //                this += AssemblyInstruction.Push(Register.A)
@@ -140,8 +140,9 @@ fun assembleExpression(variableBindings: List<Variable>,
                        ast: AST,
                        expression: Expression,
                        topLocal: Int,
+                       structLocal: Int,
                        returnInstructions: List<AssemblyInstruction>, needsValue: Boolean = true): Assembly {
-    return assembleExpression(expression, ExpressionState(variableBindings, ast, topLocal, returnInstructions), needsValue = needsValue)
+    return assembleExpression(expression, ExpressionState(variableBindings, ast, topLocal,structLocal,  returnInstructions), needsValue = needsValue)
 }
 
 private fun assembleComparisonExpression(expression: ComparisonExpression, s: ExpressionState, needsValue: Boolean = true): Assembly = buildAssembly {

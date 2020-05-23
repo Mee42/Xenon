@@ -1,12 +1,18 @@
 
-int foo(int a, int b) {
-    return a - b
+
+struct number {
+    int number
 }
+
 
 int main() {
     //val x = 8
-    println(foo(100, 8))
+    val x = number{}
+//    x.number = 7
+//    println(x.number)
+
     return 0
+
 }
 
 

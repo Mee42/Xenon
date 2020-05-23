@@ -91,7 +91,7 @@ private fun parseExpression(expression: PartExpression, localVariables: List<Loc
             VariableAccessExpression(variableName = variable.name, type = variable.type, isMutable = !variable.isFinal)
         }
         is IntegerValuePartExpression -> {
-            IntegerValueExpression(expression.v, BaseType(TypeEnum.INT32))
+            IntegerValueExpression(expression.v, expression.type)
         }
         is PrefixOperatorExpression -> when(expression.prefix){
             "!" -> TODO()
@@ -229,7 +229,7 @@ data class PartExpressionStatement(val expression: PartExpression): PartStatemen
 
 sealed class PartExpression(val str: String)
 data class IdentifierPartExpression(val id: String): PartExpression(id)
-data class IntegerValuePartExpression(val v: Int): PartExpression(v.toString())
+data class IntegerValuePartExpression(val v: Int, val type: BaseType): PartExpression(v.toString())
 data class PrefixOperatorExpression(val prefix: String, val expression: PartExpression): PartExpression("$prefix${expression.str}")
 data class InfixOperatorExpression(val operator: String, val left: PartExpression, val right: PartExpression): PartExpression("(${left.str} $operator ${right.str})")
 data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
@@ -259,7 +259,14 @@ private val prefixParserMap = listOf(
         parser(REF),
         parser(NOT),
         parser(IDENTIFIER) { _, t -> IdentifierPartExpression(t.content) },
-        parser(INTEGER) { _, t -> IntegerValuePartExpression(t.content.toInt()) },
+        parser(INTEGER) { _, t ->
+            var type = when(t.content.last()) {
+                'l' -> BaseType(TypeEnum.INT64)
+                'b' -> BaseType(TypeEnum.INT8)
+                else -> null
+            }
+            val content = if(type == null) t.content else t.content.dropLast(1)
+            IntegerValuePartExpression(content.toInt(), type ?: BaseType(TypeEnum.INT32)) },
         parser(OPEN_PARENTHESES) { queue, _ ->
             val expr = parseExpressionPart(queue, Precedence.NONE)
             queue.remove().checkType(CLOSE_PARENTHESES, "expecting a close parenthesese")
