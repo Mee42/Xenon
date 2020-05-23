@@ -8,6 +8,10 @@ class ValueSize(val bytes: Int) {
         if(!canFitInRegister) error("dumb")
         return values().first { it.size == this }
     }
+    fun toSomeSize(): RegisterSize {
+        return if(canFitInRegister) toRegisterSize()
+        else BIT64
+    }
 }
 
 enum class RegisterSize(val size: ValueSize, val asmName: String) {

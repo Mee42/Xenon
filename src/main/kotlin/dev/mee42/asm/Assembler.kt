@@ -53,7 +53,7 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
 
     var position = function.arguments.sumBy { it.type.size.bytes }.plus(12)
     function.arguments.forEachIndexed { i, it ->
-        val register = stackPointerRegister(position, it.type.size.fitToRegister())
+        val register = stackPointerRegister(position, it.type.size.toSomeSize())
         position -= it.type.size.bytes
         variableBindings.add(Variable(it.name, it.type, register))
         this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
@@ -112,7 +112,6 @@ fun assembleBlock(variableBindings: List<Variable>,
                 localVariableLocation -= size.bytes
 
                 val variableRegister = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, if(size.canFitInRegister) size.fitToRegister() else RegisterSize.BIT64, localVariableLocation)
-
                 this += AssemblyInstruction.Comment("declaring new variable  ${statement.variableName} at register $variableRegister. size: " + size.bytes)
                 this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, structLocal, returnInstructions)
                 localVariables.add(Variable(

@@ -130,10 +130,19 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
                 // so it's in the A register, but unknown size
                 val size = expr.type.size
                 this += AssemblyInstruction.Custom("sub rsp, " + size .bytes)
-                this += AssemblyInstruction.Mov(
-                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.SP), true, size.toRegisterSize()),
-                        SizedRegister(size.toRegisterSize(), Register.A).advanced()
-                )
+                if(expr.type is StructType) {
+                    // copy memory to sp
+                    this += AssemblyInstruction.Custom("mov rcx, " + size.bytes) // this many bytes
+                    this += AssemblyInstruction.Custom("mov rsi, rax")
+//                    val a = AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP),true,  RegisterSize.BIT64, structLocal)
+                    this += AssemblyInstruction.Custom("mov rdi, rsp")
+                    this += AssemblyInstruction.Custom("rep movsb")
+                } else {
+                    this += AssemblyInstruction.Mov(
+                            AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.SP), true, size.toRegisterSize()),
+                            SizedRegister(size.toRegisterSize(), Register.A).advanced()
+                    )
+                }
             }
             this += AssemblyInstruction.Call(expression.functionIdentifier)
             val argumentSize = expression.arguments.sumBy { it.type.size.bytes }
@@ -150,7 +159,7 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
                     SizedRegister(RegisterSize.BIT64, Register.A).advanced(),
                     StaticValueAdvancedRegister(offset, RegisterSize.BIT64)
             )
-            if(expression.type !is StructType) {
+            if(expression.type !is StructType) { // we need to put the value in the register
                 // it's expected in the register, dummy
                 this += AssemblyInstruction.Mov(
                         AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.A), false, RegisterSize.BIT64),

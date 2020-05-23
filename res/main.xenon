@@ -8,6 +8,10 @@ struct number {
 }
 
 
+long getIndex(number n){
+    return n.number
+}
+
 int main() {
     //val x = 8
     val x = number{}
@@ -16,6 +20,7 @@ int main() {
     x.cont.index = 101l
     println(x.number)
     println(x.cont.index)
+    println(getIndex(x))
 
 
     return 0

@@ -151,7 +151,10 @@ fun parseType(tokens: List<Token>, structs: List<Struct>): Type {
         it.names.any { typeIdentifier ->
             typeIdentifier == identifier.content
         }
-    }?.let { BaseType(it) } ?: throw ParseException("can't find type \"$identifier\"", identifier)
+    }?.let { BaseType(it) }
+            ?: structs.firstOrNull { it.name == identifier.content }?.type
+
+            ?: throw ParseException("can't find type \"$identifier\"", identifier)
 }
 
 
