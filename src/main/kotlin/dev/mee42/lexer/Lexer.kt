@@ -37,6 +37,7 @@ enum class TokenType(val regex: Regex) {
     PLUS("+"),
     DOT("."),
     REF("&"),
+    METHOD("#"),
     @Language("RegExp") STRING(quote = false, str = """"((\\\\)|(\\")|(\\n)|(\\t)|[^"\\]*)+""""),
     NEWLINE("\n"),
     @Language("RegExp") WHITESPACE(quote = false, str = """\s+"""),

@@ -3,7 +3,7 @@ syntax match XComment /\/\/.*$/
 syntax keyword XLib #lib
 syntax match XIdentifier /[a-z][A-Za-z0-9_]*/
 syntax match XAnnotation /@[a-z][A-Za-z0-9_]*/
-syntax keyword XKeyword if return while
+syntax keyword XKeyword if return while struct
 syntax keyword XBool false true
 syntax keyword XPrimitive bool byte ubyte short ushort int uint long ulong int8 int16 int32 int64 uint8 uint16 uint32 uint64 char 
 syntax keyword XVal val mut
@@ -13,6 +13,11 @@ syntax match XOperator "\v\+"
 syntax match XOperator "\v-"
 syntax match XOperator "\v\?"
 syntax match XOperator "\v\="
+syntax match XOperator "\v\&"
+
+syntax match XMember /\v\.[a-z][a-zA-Z0-9_]*/
+syntax match XMemberF /\v\#[a-z][a-zA-Z0-9_]*/
+
 " color scheme colors
 "highlight link XComment Comment
 "highlight link XKeyword Keyword
@@ -28,3 +33,6 @@ highlight XBool ctermfg=red
 highlight XKeyword  ctermfg=cyan
 highlight XOperator ctermfg=13
 highlight XAnnotation ctermfg=15
+
+highlight XMember  ctermfg=12
+highlight XMemberF ctermfg=11

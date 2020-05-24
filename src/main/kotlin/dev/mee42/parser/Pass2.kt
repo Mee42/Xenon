@@ -218,7 +218,7 @@ private fun parsePartStatement(tokens: TokenQueue, initialAST: InitialAST): Part
                 }
             }
         }
-        ASTERISK, OPEN_PARENTHESES -> {
+        ASTERISK, OPEN_PARENTHESES, REF -> {
             tokens.shove(firstToken)
             PartExpressionStatement(parseExpressionPart(tokens))
         }
@@ -246,7 +246,7 @@ data class IntegerValuePartExpression(val v: Int, val type: BaseType): PartExpre
 data class StringValuePartExpression(val s: String): PartExpression(s)
 data class PrefixOperatorExpression(val prefix: String, val expression: PartExpression, val prefixToken: Token): PartExpression("$prefix${expression.str}")
 data class InfixOperatorExpression(val operator: String, val left: PartExpression, val right: PartExpression): PartExpression("(${left.str} $operator ${right.str})")
-data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
+data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>, val member: Boolean):
         PartExpression(value.str + arguments.joinToString(",","(", ")") { it.str } )
 
 data class PartStructInitExpression(val structName: String): PartExpression("${structName}{}")
@@ -309,7 +309,35 @@ private val infixParserMap = listOf(
             val member = queue.remove().checkType(IDENTIFIER, "excpeting an identifier next").content
             PartMemberAccessExpression(left, member)
         },
+        parser(METHOD, Precedence.METHOD_ACCESS) { queue, left, token, _ ->
+            // left#identifier(args...)
+            token.checkType(METHOD, "tf??")
+            val identifier = queue.remove().checkType(IDENTIFIER, "looking for a method identifier here")
+            queue.remove().checkType(OPEN_PARENTHESES, "expecting an open parentheses here")
+            val arguments = mutableListOf<PartExpression>()
+            arguments.add(left)
+            var first = true
+            loop@ while(true) {
+                val next = queue.remove()
+                if(first) {
+                    first = false
+                    if(next.type == CLOSE_PARENTHESES) break@loop
+                    queue.shove(next)
+                    arguments.add(parseExpressionPart(queue, Precedence.NONE))
+                } else {
+                    when (next.type) {
+                        CLOSE_PARENTHESES -> break@loop
+                        COMMA -> arguments.add(parseExpressionPart(queue, Precedence.NONE))
+                        else -> throw ParseException("not sure what you want here", next)
+                    }
+                }
+            }
+            FunctionCallPartExpression(IdentifierPartExpression(identifier.content, identifier), arguments, member = true)
+        },
         parser(OPEN_PARENTHESES, Precedence.CALL) { queue, left, token, _ ->
+            if(left !is IdentifierPartExpression) {
+                throw ParseException("looking for an identifier before a call - got $left")
+            }
             val arguments = mutableListOf<PartExpression>()
             token.checkType(OPEN_PARENTHESES, "this better be an open parenth")
             var first = true
@@ -330,7 +358,7 @@ private val infixParserMap = listOf(
                 }
             }
 //            println("arguments: $arguments")
-            FunctionCallPartExpression(left, arguments)
+            FunctionCallPartExpression(left, arguments, member = false)
         }
 )
 
@@ -340,10 +368,11 @@ enum class Precedence(val order: Int) {
     CONDITIONAL(2),
     SUM(3),
     PRODUCT(4),
-    PREFIX(5),
-    CALL(6),
-    STRUCT_INIT(6),
-    STRUCT_MEMBER_ACCESS(7)
+    METHOD_ACCESS(5),
+    PREFIX(6),
+    CALL(7),
+    STRUCT_INIT(8),
+    STRUCT_MEMBER_ACCESS(8)
     ;
 
     fun oneLess():Precedence {
