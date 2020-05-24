@@ -7,6 +7,7 @@ import dev.mee42.lexer.TokenType.*
 import dev.mee42.lexer.lex
 import dev.mee42.type
 import dev.mee42.xpp.LabeledLine
+import java.lang.ClassCastException
 import java.util.*
 
 private data class LocalVariable(val name: String, val type: Type, val isFinal: Boolean)
@@ -70,8 +71,7 @@ private fun parseBlock(partBlock: PartBlock, localVariables: List<LocalVariable>
                     throw ParseException("while statement conditional should be of type boolean, not of type ${conditional.type}")
                 }
                 val block = parseBlock(statement.block, localVariables + scopedLocalVariables, ast)
-                IfStatement(conditional, block)
-
+                WhileStatement(conditional, block)
             }
             is PartReturn -> {
                 ReturnStatement(parseExpression(statement.value,localVariables + scopedLocalVariables,ast))
@@ -99,7 +99,14 @@ private fun parseExpression(expression: PartExpression, localVariables: List<Loc
         is PrefixOperatorExpression -> when(expression.prefix){
             "!" -> TODO()
             "-" -> TODO()
-            "*" -> DereferencePointerExpression(parseExpression(expression.expression, localVariables, ast))
+            "*" -> {
+                try {
+                    DereferencePointerExpression(parseExpression(expression.expression, localVariables, ast))
+                }catch(e: ClassCastException) {
+                    e.printStackTrace() // TODO remove this please
+                    throw ParseException("something broke", expression.prefixToken)
+                }
+            }
             "&" -> {
                 val expr = parseExpression(expression.expression, localVariables, ast)
                 if(expr !is LValueExpression) {
@@ -237,7 +244,7 @@ sealed class PartExpression(val str: String)
 data class IdentifierPartExpression(val id: String, val token: Token): PartExpression(id)
 data class IntegerValuePartExpression(val v: Int, val type: BaseType): PartExpression(v.toString())
 data class StringValuePartExpression(val s: String): PartExpression(s)
-data class PrefixOperatorExpression(val prefix: String, val expression: PartExpression): PartExpression("$prefix${expression.str}")
+data class PrefixOperatorExpression(val prefix: String, val expression: PartExpression, val prefixToken: Token): PartExpression("$prefix${expression.str}")
 data class InfixOperatorExpression(val operator: String, val left: PartExpression, val right: PartExpression): PartExpression("(${left.str} $operator ${right.str})")
 data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
         PartExpression(value.str + arguments.joinToString(",","(", ")") { it.str } )
@@ -258,13 +265,15 @@ private fun parser(type: TokenType, runner: (TokenQueue, Token) -> PartExpressio
         PrefixParser(type, runner)
 
 fun prefixOp(queue: TokenQueue, token: Token) =
-        PrefixOperatorExpression(token.content, parseExpressionPart(queue, Precedence.PREFIX))
+        PrefixOperatorExpression(token.content, parseExpressionPart(queue, Precedence.PREFIX), token)
 
 private val prefixParserMap = listOf(
         parser(ASTERISK),
         parser(MINUS),
         parser(REF),
         parser(NOT),
+        parser(TRUE) { _, _ -> IntegerValuePartExpression(1, BaseType(TypeEnum.BOOLEAN)) },
+        parser(FALSE) { _, _ -> IntegerValuePartExpression(0, BaseType(TypeEnum.BOOLEAN)) },
         parser(IDENTIFIER) { _, t -> IdentifierPartExpression(t.content, t) },
         parser(STRING) { _, t -> StringValuePartExpression(t.content.substring(1, t.content.length - 1)) },
         parser(INTEGER) { _, t ->

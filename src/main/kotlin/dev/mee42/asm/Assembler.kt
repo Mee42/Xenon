@@ -175,6 +175,17 @@ fun assembleBlock(variableBindings: List<Variable>,
                 this += endingLabel
             }
             is WhileStatement -> {
+                /*
+                lstart:
+                   [conditional]
+                   cmp al, 0
+                   je end
+                   [block]
+                   jump lstart
+                lend:
+
+                 */
+                this += AssemblyInstruction.Comment("starting WHILE BLOCK")
                 val lstart = AssemblyInstruction.Label.next()
                 val lend = AssemblyInstruction.Label.next()
                 this += lstart
@@ -187,6 +198,7 @@ fun assembleBlock(variableBindings: List<Variable>,
                 this += assembleBlock(variableBindings + localVariables, ast, statement.block, localVariableLocation,structLocal, returnInstructions)
                 this += AssemblyInstruction.Jump(lstart.name)
                 this += lend
+                this += AssemblyInstruction.Comment("ending WHILE BLOCK")
             }
         }
     }

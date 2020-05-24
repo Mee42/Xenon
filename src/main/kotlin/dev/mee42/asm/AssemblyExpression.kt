@@ -190,9 +190,10 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
             )
             if(expression.type !is StructType) { // we need to put the value in the register
                 // it's expected in the register, dummy
+                val size = expression.type.size.toRegisterSize()
                 this += AssemblyInstruction.Mov(
-                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.A), false, RegisterSize.BIT64),
-                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.A), true, RegisterSize.BIT64)
+                        AdvancedRegister(SizedRegister(size, Register.A), false, size),
+                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.A), true, size)
                 )
             }
         }
