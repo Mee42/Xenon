@@ -41,7 +41,7 @@ enum class TokenType(val regex: Regex) {
     NEWLINE("\n"),
     @Language("RegExp") WHITESPACE(quote = false, str = """\s+"""),
     @Language("RegExp") ATTRIBUTE (quote = false, str = """@[a-zA-Z0-9_]*"""),
-    @Language("RegExp") IDENTIFIER(quote = false, str = """[a-z][A-Za-z0-9_]*"""),
+    @Language("RegExp") IDENTIFIER(quote = false, str = """[a-zA-Z][A-Za-z0-9_]*"""),
     @Language("RegExp") INTEGER   (quote = false, str = """(?:-?)[0-9]+(?:ub|us|ui|ul|b|s|i|l|u)?"""),
     MINUS("-"),
     SLASH("/"),

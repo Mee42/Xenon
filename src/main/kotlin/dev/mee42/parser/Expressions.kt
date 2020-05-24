@@ -36,8 +36,7 @@ class IntegerValueExpression(val value: Int, type: BaseType) :Expression(type) {
     }
 }
 
-data class StringLiteralExpression(val value: String) : Expression(type("char*")) {
-}
+data class StringLiteralExpression(val value: String) : Expression(type("char*"))
 
 
 enum class MathType(val symbol: String) {

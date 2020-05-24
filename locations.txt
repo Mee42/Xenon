@@ -1,0 +1,20 @@
+
+4, 4
+20, 16
+
+int addSomeNumbers(int a, int b){
+    ; argument 0 (a) in register DWORD DWORD [rbp + 20]
+    ; argument 1 (b) in register DWORD DWORD [rbp + 16]
+
+
+
+8, 4, 4
+24, 20, 16
+
+
+
+int foo(int* ptr, int a, int b){ (WRONG)
+	position = 16 + 4 + 4 + 8 = 32 - 4
+    ; argument 0 (a) in register DWORD DWORD [rbp + 28]
+    ; argument 1 (b) in register DWORD DWORD [rbp + 24]
+    ; argument 2 (_ret_ptr) in register QWORD QWORD [rbp + 16]

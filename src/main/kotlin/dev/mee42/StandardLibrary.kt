@@ -395,9 +395,9 @@ private val malloc = lib {
         malloc_int:    
             push rbp
             mov rbp, rsp
-            mov rdi, [rbp + 16]
-            add rdi, rdi
-            add rdi, rdi
+            mov edi, [rbp + 16]
+            add edi, edi
+            add edi, edi
             xor rax, rax
             call malloc
             pop rbp

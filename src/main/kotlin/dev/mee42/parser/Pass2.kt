@@ -87,11 +87,14 @@ private fun parseExpression(expression: PartExpression, localVariables: List<Loc
     return when(expression) {
         is IdentifierPartExpression -> {
             // variable time
-            val variable = localVariables.firstOrNull { it.name == expression.id } ?: throw ParseException("can't find variable \"${expression.id}\"")
+            val variable = localVariables.firstOrNull { it.name == expression.id } ?: throw ParseException("can't find variable \"${expression.id}\"", expression.token)
             VariableAccessExpression(variableName = variable.name, type = variable.type, isMutable = !variable.isFinal)
         }
         is IntegerValuePartExpression -> {
             IntegerValueExpression(expression.v, expression.type)
+        }
+        is StringValuePartExpression -> {
+            StringLiteralExpression(expression.s)
         }
         is PrefixOperatorExpression -> when(expression.prefix){
             "!" -> TODO()
@@ -173,7 +176,10 @@ private fun parsePartStatement(tokens: TokenQueue, initialAST: InitialAST): Part
     return when(firstToken.type) {
         RETURN_KEYWORD -> PartReturn(parseExpressionPart(tokens))
         IF_KEYWORD -> PartIfStatement(parseExpressionPart(tokens), parsePartBlock(tokens, initialAST))
-        WHILE_KEYWORD -> PartWhileStatement(parseExpressionPart(tokens), parsePartBlock(tokens, initialAST))
+        WHILE_KEYWORD -> {
+            val expr = parseExpressionPart(tokens)
+            PartWhileStatement(expr, parsePartBlock(tokens, initialAST))
+        }
         IDENTIFIER -> {
             val (nextToken, isMutable) = if (firstToken.content == "mut") {
                 tokens.remove() to true
@@ -228,8 +234,9 @@ data class PartVariableDef(val typeDef: Type?, val name: String, val mutable: Bo
 data class PartExpressionStatement(val expression: PartExpression): PartStatement()
 
 sealed class PartExpression(val str: String)
-data class IdentifierPartExpression(val id: String): PartExpression(id)
+data class IdentifierPartExpression(val id: String, val token: Token): PartExpression(id)
 data class IntegerValuePartExpression(val v: Int, val type: BaseType): PartExpression(v.toString())
+data class StringValuePartExpression(val s: String): PartExpression(s)
 data class PrefixOperatorExpression(val prefix: String, val expression: PartExpression): PartExpression("$prefix${expression.str}")
 data class InfixOperatorExpression(val operator: String, val left: PartExpression, val right: PartExpression): PartExpression("(${left.str} $operator ${right.str})")
 data class FunctionCallPartExpression(val value: PartExpression, val arguments: List<PartExpression>):
@@ -258,9 +265,10 @@ private val prefixParserMap = listOf(
         parser(MINUS),
         parser(REF),
         parser(NOT),
-        parser(IDENTIFIER) { _, t -> IdentifierPartExpression(t.content) },
+        parser(IDENTIFIER) { _, t -> IdentifierPartExpression(t.content, t) },
+        parser(STRING) { _, t -> StringValuePartExpression(t.content.substring(1, t.content.length - 1)) },
         parser(INTEGER) { _, t ->
-            var type = when(t.content.last()) {
+            val type = when(t.content.last()) {
                 'l' -> BaseType(TypeEnum.INT64)
                 'b' -> BaseType(TypeEnum.INT8)
                 else -> null
@@ -348,7 +356,13 @@ private fun parseExpressionPart(tokens: TokenQueue, precedence: Precedence = Pre
         // if the precedence is >= whatever the precedence of the next infix expression would be
         if(precedence.order >= (infixParserMap.firstOrNull { peek.type == it.type }?.precedence ?: Precedence.NONE).order) break
         val infixParser = infixParserMap.firstOrNull { it.type == peek.type } ?: return left
-        tokens.remove() // remove the token
+        val removed = tokens.remove() // remove the token
+
+        if(infixParser.type == OPEN_BRACKET && tokens.peekWithNewline().type != CLOSE_BRACKET) {
+            tokens.shove(removed)
+            break
+        } // while i == b { }
+
         left = infixParser.runner(tokens, left, peek, infixParser.precedence /*might be 'precedence'*/)
     }
     return left

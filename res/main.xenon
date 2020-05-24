@@ -1,35 +1,61 @@
 
-struct number_container {
-    long index
-}
-struct number {
-    int number
-    number_container cont
+
+struct List {
+    int length
+    int allocated
+    int* data
 }
 
-
-long getIndex(number n){
-    return n.number
+List list(){
+    val l = List{}
+    l.length = 0
+    l.allocated = 10
+    l.data = malloc_int(40)
+    return l
 }
+
+int print(List l){
+    print("[")
+    mut val i = 0
+    while i != l.length  {
+        print(*(l.data + i))
+        i = i + 1
+    }
+    print("]")
+    return 0
+}
+
+int memcpy(int* a, int* b, int bytes){
+    mut val i = 0
+    while i != bytes {
+        *(b + i) = *(a + i)
+    }
+    return 0
+}
+
+int put(List+ l, int element) {
+   
+//    if (cpy.length) == (cpy.allocated) { // we need to resize the list
+//        val oldAllocated = cpy.allocated
+//        (*l).allocated = oldAllocated + oldAllocated
+//        // TODO write a memcpy implementation
+//        val new_ptr = malloc_int(oldAllocated + oldAllocated)
+//        memcpy(*l.data, new_ptr, oldAllocated)
+//        *l.data = new_ptr
+//    }
+    
+    //*l.data
+    mut val ptr = (*l).data
+    *(ptr + (*l).length) = element
+    //*((*l).data + (*l).length) = element
+    (*l).length = (*l).length + 1
+    return (*l).length
+}
+
 
 int main() {
-    //val x = 8
-    val x = number{}
-    val xValPtr = &x.number
-    *xValPtr = 7
-    x.cont.index = 101l
-    println(x.number)
-    println(x.cont.index)
-    println(getIndex(x))
-
-
+    val numbers = list()
+    println(put(&numbers, 42))
+    print(numbers) 
     return 0
-
 }
-
-
-
-
-
-
-

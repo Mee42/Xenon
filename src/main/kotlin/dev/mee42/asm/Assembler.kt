@@ -2,6 +2,7 @@ package dev.mee42.asm
 
 import dev.mee42.parser.*
 import dev.mee42.parser.Function
+import dev.mee42.type
 
 fun assemble(ast: AST): Assembly {
     return ast.functions
@@ -51,12 +52,22 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
                else this + 16 - (this % 16)
     }
 
-    var position = function.arguments.sumBy { it.type.size.bytes }.plus(12)
-    function.arguments.forEachIndexed { i, it ->
-        val register = stackPointerRegister(position, it.type.size.toSomeSize())
-        position -= it.type.size.bytes
+
+    val isStruct = function.returnType is StructType
+
+    val arguments = (function.arguments +  if(isStruct) listOf(Argument("_ret_ptr", PointerType(function.returnType, true))) else listOf()).asReversed()
+
+    var position = 16
+    val comments = mutableListOf<String>()
+// this actually sucks, I hate it
+    arguments.forEachIndexed { i, it ->
+        val register = stackPointerRegister(position, it.type.size.toSomeSize(it.type is StructType))
         variableBindings.add(Variable(it.name, it.type, register))
-        this += AssemblyInstruction.Comment("argument $i (${it.name}) in register ${register.size.asmName} $register")
+        position += it.type.size.bytes
+        comments += "(${it.name}) in register ${register.size.asmName} $register"
+    }
+    comments.reversed().forEachIndexed { i, s ->
+        this += AssemblyInstruction.Comment("argument $i $s")
     }
 
     val max = function.content.localVariableMaxBytes + function.content.maxStructSize
@@ -70,17 +81,33 @@ private fun assemble(function: XenonFunction, ast: AST): Assembly = buildAssembl
         reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
         reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
     )
-    val returnInstructions = buildList<AssemblyInstruction> {
+    val returnInstructions = ReturnBuilder(isStruct, localVariableSize,function.returnType)
+    this += assembleBlock(variableBindings, ast, function.content, -function.content.maxStructSize,-function.content.maxStructSize, returnInstructions)
+}
+
+
+class ReturnBuilder(private val isStruct: Boolean, private val localVariableSize: Int, private val retType: Type) {
+    fun assembleReturn(expr: Expression, s: ExpressionState): Assembly = buildAssembly {
+        if(isStruct) {
+            if(retType !is StructType) error("expecting struct type")
+            // we want to copy the bytes at rax to the pointer that rbx points to
+            val xpr = AssigmentExpression(
+                    setLocation = DereferencePointerExpression(VariableAccessExpression("_ret_ptr", PointerType(retType, true), false)),
+                    value = expr
+            )
+            this += assembleExpression(xpr, s) // just copy the bytes like a normal transfer
+            this += AssemblyInstruction.Custom("")
+        } else {
+            this += assembleExpression(expr, s) // put the result in the rax register, then return
+        }
         this += AssemblyInstruction.Add(
-            reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
-            reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
+                reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
+                reg2 = StaticValueAdvancedRegister(localVariableSize, RegisterSize.BIT64)
         )
         this += AssemblyInstruction.Pop(Register.BP)
         this += AssemblyInstruction.Ret
     }
-    this += assembleBlock(variableBindings, ast, function.content, 0 - function.content.maxStructSize,0 - function.content.maxStructSize, returnInstructions)
 }
-
 
 
 fun assembleBlock(variableBindings: List<Variable>,
@@ -88,16 +115,16 @@ fun assembleBlock(variableBindings: List<Variable>,
                           block: Block,
                           topLocal: Int,
                           structLocal: Int,
-                          returnInstructions: List<AssemblyInstruction>): Assembly  = buildAssembly {
+                          returnInstructions: ReturnBuilder): Assembly  = buildAssembly {
     val localVariables = mutableListOf<Variable>()
     var localVariableLocation = topLocal
     for(statement in block.statements) {
         this += AssemblyInstruction.Comment("statement $statement")
         when (statement) {
             is ReturnStatement -> {
-                val expression = statement.expression
-                this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, structLocal, returnInstructions)
-                this += returnInstructions
+//                val expression = statement.expression
+//                this += assembleExpression(variableBindings + localVariables, ast, expression, localVariableLocation, structLocal, returnInstructions)
+                this += returnInstructions.assembleReturn(statement.expression, ExpressionState(variableBindings + localVariables, ast, localVariableLocation, structLocal, returnInstructions))
             }
             is ExpressionStatement -> {
                 this += assembleExpression(variableBindings + localVariables, ast, statement.expression, localVariableLocation, structLocal, returnInstructions)

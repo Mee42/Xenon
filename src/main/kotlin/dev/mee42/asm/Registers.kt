@@ -8,8 +8,8 @@ class ValueSize(val bytes: Int) {
         if(!canFitInRegister) error("dumb")
         return values().first { it.size == this }
     }
-    fun toSomeSize(): RegisterSize {
-        return if(canFitInRegister) toRegisterSize()
+    fun toSomeSize(isStruct: Boolean): RegisterSize {
+        return if(canFitInRegister && !isStruct) toRegisterSize()
         else BIT64
     }
 }

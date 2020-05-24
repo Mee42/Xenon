@@ -38,7 +38,7 @@ data class ExpressionState(val variableBindings: List<Variable>,
                            val ast: AST,
                            val topLocal: Int,
                            val structLocal: Int,
-                           val returnInstructions: List<AssemblyInstruction>)
+                           val returnInstructions: ReturnBuilder)
 
 fun assembleLValue(expression: LValueExpression, s: ExpressionState) = buildAssembly {
     when(expression) {
@@ -76,13 +76,15 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
         is DereferencePointerExpression -> {
             if(expression.pointerExpression.type !is PointerType) error("assertion failed")
             this += assembleExpression(expression.pointerExpression, s)
-            this += AssemblyInstruction.Mov(
-                    reg1 = SizedRegister(expression.type.size.fitToRegister(), Register.A).advanced(),
-                    reg2 = AdvancedRegister(
-                            register = SizedRegister(RegisterSize.BIT64,  Register.A),
-                            isMemory = true,
-                            size = expression.type.size.fitToRegister())
-            )
+            if(expression.type !is StructType) {
+                this += AssemblyInstruction.Mov(
+                        reg1 = SizedRegister(expression.type.size.fitToRegister(), Register.A).advanced(),
+                        reg2 = AdvancedRegister(
+                                register = SizedRegister(RegisterSize.BIT64, Register.A),
+                                isMemory = true,
+                                size = expression.type.size.fitToRegister())
+                ).comment("THIS MOV")
+            }
         }
         is TypelessBlock -> {
             for(elem in expression.expressions) {
@@ -113,18 +115,38 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
             this += assembleComparisonExpression(expression, s, needsValue)
         }
         is AssigmentExpression -> {
-            this += assembleLValue(expression.setLocation, s)
-            this += AssemblyInstruction.Custom("push rax ; push the rax value")
-            this += assembleExpression(expression.value, s)
-            this += AssemblyInstruction.Pop(Register.B)
             // what's the size?
-            this += AssemblyInstruction.Mov(
-                    AdvancedRegister(SizedRegister(RegisterSize.BIT64,Register.B), true,expression.value.type.size.toRegisterSize()),
-                    SizedRegister(expression.value.type.size.toRegisterSize(), Register.A).advanced()
-            )
+            if(expression.value.type is StructType) { // we are copying the bytes from
+//                if(expression.value is LValueExpression) {
+                    this += assembleLValue(expression.setLocation, s)
+                    this += AssemblyInstruction.Custom("push rax")
+//                    if(expression.value is LValueExpression)
+//                        this += assembleLValue(expression.value, s)  //
+                    this += assembleExpression(expression.value, s) // if the result is a struct, it'll leave the pointer in rax
+                    this += AssemblyInstruction.Custom("pop rdi")
+                    val bytes = expression.value.type.struct.size.bytes
+                    // we need to move $bytes bytes from rax to rbx
+                    this += AssemblyInstruction.Custom("mov rcx, $bytes")
+                    this += AssemblyInstruction.Custom("mov rsi, rax") // rdi is already set
+                    this += AssemblyInstruction.Custom("rep movsb")
+//                } else {
+//                    // we gotta just run it, and use the
+//                }
+            } else {
+                this += assembleLValue(expression.setLocation, s)
+                this += AssemblyInstruction.Custom("push rax ; push the rax value")
+                this += assembleExpression(expression.value, s)
+                this += AssemblyInstruction.Pop(Register.B)
+                this += AssemblyInstruction.Mov(
+                        AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.B), true, expression.value.type.size.toRegisterSize()),
+                        SizedRegister(expression.value.type.size.toRegisterSize(), Register.A).advanced()
+                )
+            }
         }
         is FunctionCallExpression -> {
-            for(expr in expression.arguments){
+            val arguments = expression.arguments
+
+            for(expr in arguments){
                 this += assembleExpression(expr, s)
 //                this += AssemblyInstruction.Push(Register.A)
                 // so it's in the A register, but unknown size
@@ -144,8 +166,15 @@ fun assembleExpression(expression: Expression, s: ExpressionState, needsValue: B
                     )
                 }
             }
+            if(expression.returnType is StructType) {
+                // we need to also push the _ret_ptr
+                this += AssemblyInstruction.Custom("lea rax, " + AdvancedRegister(SizedRegister(RegisterSize.BIT64, Register.BP), true, RegisterSize.BIT64, s.structLocal).toStringNoSize())
+                this += AssemblyInstruction.Push(Register.A)
+            }
+
+
             this += AssemblyInstruction.Call(expression.functionIdentifier)
-            val argumentSize = expression.arguments.sumBy { it.type.size.bytes }
+            val argumentSize = expression.arguments.sumBy { it.type.size.bytes } + if(expression.returnType is StructType) 8 else 0
             this += AssemblyInstruction.Add(
                     reg1 = SizedRegister(RegisterSize.BIT64, Register.SP).advanced(),
                     reg2 = StaticValueAdvancedRegister(argumentSize, RegisterSize.BIT64)
@@ -186,7 +215,8 @@ fun assembleExpression(variableBindings: List<Variable>,
                        expression: Expression,
                        topLocal: Int,
                        structLocal: Int,
-                       returnInstructions: List<AssemblyInstruction>, needsValue: Boolean = true): Assembly {
+                       returnInstructions: ReturnBuilder,
+                       needsValue: Boolean = true): Assembly {
     return assembleExpression(expression, ExpressionState(variableBindings, ast, topLocal,structLocal,  returnInstructions), needsValue = needsValue)
 }
 
