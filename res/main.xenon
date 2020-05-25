@@ -6,7 +6,7 @@ struct List {
     int* data
 }
 // the constructor, but really just a free floating function
-List list(){
+List List(){
     val l = List{}
     l.length = 0
     l.allocated = 10
@@ -61,7 +61,7 @@ int memcpy(int* a, int* b, int bytes){
 }
 
 int main() {
-    val numbers = list()
+    val numbers = List()
     mut val i = 0
     while i != 15 {
         &numbers#put(i)

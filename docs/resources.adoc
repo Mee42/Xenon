@@ -4,5 +4,6 @@ These are things I found helpful while creating this language,
 and may want to reference back later.
 NOTE: not very up to date. I'll try to add content as I find it, but sometimes I forget.
 
+* https://www.felixcloutier.com/x86/[the intel x86_64 guide, in a better format. This site has been invaluable for learning Assembly]
 * https://www.cplusplus.com/reference/cstdio/printf/[The ``printf`` documentation]
 * https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/x64-architecture[Microsoft x64 Architecture guide]
