@@ -5,7 +5,8 @@ syntax match XIdentifier /[a-z][A-Za-z0-9_]*/
 syntax match XAnnotation /@[a-z][A-Za-z0-9_]*/
 syntax keyword XKeyword if return while struct
 syntax keyword XBool false true
-syntax keyword XPrimitive bool byte ubyte short ushort int uint long ulong int8 int16 int32 int64 uint8 uint16 uint32 uint64 char 
+syntax keyword XType bool byte ubyte short ushort int uint long ulong int8 int16 int32 int64 uint8 uint16 uint32 uint64 char 
+syntax match XType /[A-Z][a-zA-Z0-9_]*/
 syntax keyword XVal val mut
 syntax match XInt /-\=[0-9]\+\(ub\|us\|ui\|ul\|b\|s\|i\|l\|i\|\)/
 syntax match XOperator "\v\*"
@@ -27,7 +28,7 @@ highlight XLib ctermfg=75
 highlight XString ctermfg=23 
 highlight XComment ctermfg=darkgrey
 highlight XVal ctermfg=73
-highlight XPrimitive ctermfg=220
+highlight XType ctermfg=220
 highlight XInt ctermfg=green
 highlight XBool ctermfg=red
 highlight XKeyword  ctermfg=cyan

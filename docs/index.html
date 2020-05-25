@@ -445,7 +445,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sectionbody">
 <div class="paragraph">
 <p>Xenon is a language that is similar to C.
-It compiles to basic assembly, which can be assembled to x64 instructions.</p>
+It compiles to NASM assembly, which can be assembled to x64 instructions.</p>
 </div>
 <div class="paragraph">
 <p>Some helpful Links: <a href="help">man pages</a>. <a href="resources">Resources</a></p>
@@ -716,7 +716,7 @@ but member-access has not yet been coded (as structs have not been coded yet)</p
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code class="language-assembly" data-lang="assembly">call foo // return value is in the eax register
-add eax, eax
+incr eax
 // return value is left in the eax register</code></pre>
 </div>
 </div>
@@ -730,7 +730,7 @@ value passing.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-04-27 09:53:22 -0400
+Last updated 2020-05-03 01:18:24 -0400
 </div>
 </div>
 </body>

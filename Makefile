@@ -2,7 +2,7 @@
 
 
 base:
-	@echo "do make install to install"
+	@echo "run \"make install\" to install"
 
 
 docs:
