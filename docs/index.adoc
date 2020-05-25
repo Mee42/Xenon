@@ -186,7 +186,7 @@ There are many things that you should be able to do, but will crash the compiler
 These are features that have not been fully implemented yet.
 
 Because writing these down will lead to them being quickly outdated,
-I'm only going to document shortcdivisionomings that will *not* crash the compiler,
+I'm only going to document shortcomings that will *not* crash the compiler,
 and that you need to be aware of in order to use Xenon.
 
 * Functions are not checked to make sure they return, nor is the return type checked.

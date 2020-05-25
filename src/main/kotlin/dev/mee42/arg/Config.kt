@@ -114,8 +114,9 @@ fun parseConfig(args: List<String>): Config {
             token == "--run" -> {
                 format = OutputFormat.RUN
             }
-            token == "--out" -> outputBinary = queue.remove()
-            token == "-t" || token == "--target" -> target = queue.remove()
+            token == "-f" || token == "--file" -> target = queue.remove()
+            token == "-t" || token == "--target" -> outputBinary = queue.remove()
+
             token == "--verbose, -v" -> sortaVerbose()
             token == "-vv" || token == "-vall" -> verboseEnabled += VerboseOption.values()
             token.startsWith("-v") -> {
