@@ -15,7 +15,9 @@ private data class LocalVariable(val name: String, val type: Type, val isFinal: 
 fun parsePass2(initialAST: InitialAST): AST {
     // this does all the type checking. After this, no more token manipulation should be needed
     val functions = initialAST.functions.map { parseFunction(it, initialAST) }
-    return AST(functions = functions, structs = initialAST.structs)
+    val ast = AST(functions = functions, structs = initialAST.structs)
+    checkReturn(ast)
+    return ast
 }
 
 private fun parseFunction(it: InitialFunction, initialAST: InitialAST): Function {
