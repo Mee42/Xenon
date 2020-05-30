@@ -12,17 +12,26 @@ import dev.mee42.xpp.preprocess
 import java.io.File
 import java.time.Duration
 
-fun main(args: Array<String>) {
+fun main(args: Array<String>){
     val config = parseConfig(args.toList())
     globalConfig = config
     VerboseOption.CONFIG.println(config)
+    fullRun()
+}
+
+fun compile(text: String, buildDir: File, fileName: String = "tmp"): Assembly {
+    // TODO make this possible to be called from the propertest framework
+    TODO()
+}
+
+fun fullRun() {
     // okay, now compile it
     val inputFile = File(globalConfig.target);
     if (!inputFile.exists()) error("target file \"$inputFile\" does not exist")
     val text = inputFile.readText(Charsets.UTF_8)
 
     // compile
-    val buildDir = File(config.buildDir, globalConfig.target)
+    val buildDir = File(globalConfig.buildDir, globalConfig.target)
     buildDir.mkdirs()
 
     val preprocessed = time("preprocess") { preprocess(text, globalConfig.target) }
@@ -32,8 +41,8 @@ fun main(args: Array<String>) {
     val initialAST = time("pass1") { parsePass1(tokens).withOther(stdLibDef) }
     val ast = time("pass2") { markPurity(parsePass2(initialAST)) }
     VerboseOption.DECOMPILE_AST.println(ast.decompile())
-    val optimizedAST = if (config.optimizerIterations != 0)
-        time("optimize pass") { optimize(ast, config.optimizerIterations) }
+    val optimizedAST = if (globalConfig.optimizerIterations != 0)
+        time("optimize pass") { optimize(ast, globalConfig.optimizerIterations) }
     else ast
     VerboseOption.DECOMPILE_AST.println(ast.decompile("optimized ast"))
     if(VerboseOption.AST.isSelected()) {
@@ -43,8 +52,8 @@ fun main(args: Array<String>) {
     val optimizedASM = time("optimize asm") { optimize(asm) }
     val asmFile = writeToFile(optimizedASM, buildDir, inputFile.name)
     val objectFile = File(buildDir, "${inputFile.name}.o")
-    if(config.format == OutputFormat.NASM) return
-    val nasmCommand = config.nasmCommand
+    if(globalConfig.format == OutputFormat.NASM) return
+    val nasmCommand = globalConfig.nasmCommand
             .replace("{i}", asmFile.absolutePath).replace("{o}", objectFile.absolutePath)
     VerboseOption.COMMANDS.println("nasm command: \"$nasmCommand\"")
     val pb = ProcessBuilder("bash","-c", nasmCommand)
@@ -52,16 +61,16 @@ fun main(args: Array<String>) {
 
     var result = pb.start().waitFor()
     if(result != 0) error("assembler exiting with code $result")
-    if(config.format == OutputFormat.OBJECT) return
-    val gccCommand = config.gccCommand
-            .replace("{i}", objectFile.absolutePath).replace("{o}", config.outputBinary)
+    if(globalConfig.format == OutputFormat.OBJECT) return
+    val gccCommand = globalConfig.gccCommand
+            .replace("{i}", objectFile.absolutePath).replace("{o}", globalConfig.outputBinary)
     VerboseOption.COMMANDS.println("gcc command: \"$gccCommand\"")
     val gcc = ProcessBuilder("bash","-c", gccCommand)
     gcc.inheritIO()
     result = gcc.start().waitFor()
     if(result != 0) error("native code compiler exiting with code $result")
-    if(config.format == OutputFormat.CODE) return
-    val time = run(File(config.outputBinary))
+    if(globalConfig.format == OutputFormat.CODE) return
+    val time = run(File(globalConfig.outputBinary))
     VerboseOption.END_TIME.println("runtime: " + time.toMillis() + "ms", true)
 }
 
