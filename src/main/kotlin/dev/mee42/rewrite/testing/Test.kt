@@ -1,7 +1,6 @@
 package dev.mee42.rewrite.testing
 
 import java.util.*
-import kotlin.system.exitProcess
 
 typealias TypeName     = String
 typealias Identifier   = String
@@ -46,7 +45,7 @@ object BoolType: Type(){
     }
 }
 
-// TODO refactor out
+// TODO refactor out the parsing of types
 fun type(type: UnparsedType, structArity: Map<Identifier, Int>, templateValues: Map<Identifier, Type?>): Pair<Type, List<Pair<Identifier, List<Type>>>> {
     return when {
         type.startsWith(" ") || type.endsWith(" ") -> type(type.trim(), structArity, templateValues)
@@ -106,6 +105,8 @@ fun type(untypedStructs: List<UntypedStruct>): List<TypedStruct> {
     val structArity = untypedStructs.map { it.identifier to it.templates.size }.toMap()
     while(needed.queue.isNotEmpty()) {
         val (nextID, type) = needed.queue.removeFirst()
+        // ok we'll try and see if it's already existing
+        if(done[nextID to type] != null) continue
         val next = untypedStructs.firstOrNull { it.identifier == nextID } ?: error("can't find struct $nextID")
         if(next.templates.size != type.size) error("template arity mismatched: caller has ${type.size}, callee only has ${next.templates.size}")
         // ok so now lets handle the 0 templates case. the easy one lol
@@ -146,7 +147,8 @@ fun removeTemplatedTypes(typedStruct: TypedStruct): TypedStruct {
 fun main() {
     val untyped = listOf(
             UntypedStruct("Main",  listOf("Foo<Bool, Bool>" to "x", "Foo<Int, Foo<Bool, Bool>>" to "z"), emptyList()),
-            UntypedStruct("Foo",   listOf(), listOf("A","B"))
+            UntypedStruct("Foo",   listOf("A" to "a", "Bar<B>" to "b"), listOf("A","B")),
+            UntypedStruct("Bar", listOf("Foo<T, T>" to "t"), listOf("T"))
     )
     println("==== untyped")
     untyped.forEach(::print)
