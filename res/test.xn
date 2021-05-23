@@ -1,0 +1,62 @@
+func [T, R] cast(T t) R {}
+
+struct[T] List {
+    Int size;
+    Int allocated;
+    T* data;
+}
+struct[A, B] Pair {
+    A a;
+    B b;
+}
+struct[T] Foo {
+    List[Pair[T, T]] list;
+}
+
+func[T] malloc() T* {
+    return cast::[Int, T*](sizeof::[T]());
+    // just returns the number of bytes in the size thing
+    // for testing
+}
+func foo() {
+   malloc::[Int]();
+   malloc::[Char]();
+}
+
+
+//func[T] realloc(T* ptr, Int size) T*  {
+//    // ...
+//}
+//
+//func[T] newList() List[T] {
+//    return struct List[T] { // the type 'List[T]' is optional when can be inferred
+//        .size      = 0,
+//        .allocated = 10,
+//        .data      = malloc::[T](10),
+//    };
+//}
+//
+//func[T] (List[T]* self).add(T element) {
+//    if(self->size == self->allocated) {
+//        self->allocated = self->allocated * 2; // TODO add a =* operator
+//        self->data = realloc::[T](self->data, self->allocated);
+//    };
+//    // TODO add a ++ operator
+//    self->size = self->size + 1;
+//    self->data[self->size] = element;
+//}
+//
+//func main() Int {
+//   val List[Int]* numbers = newList();
+//   numbers.add(7);
+//   numbers.add(8);
+//   (&numbers)->add(3);
+//}
+//
+//
+
+
+
+
+
+
