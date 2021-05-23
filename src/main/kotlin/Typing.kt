@@ -92,7 +92,8 @@ fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
             untypedStructs = untypedAST.structs,
             genericNames = function.genericNames.toSet(),
             removeGenerics = { it.replaceGenerics(function.genericsInfo) },
-            specializeFunction = ::specialized
+            specializeFunction = ::specialized,
+            arguments = function.arguments
         )
         val compiledFunction = Function(
             header = function,

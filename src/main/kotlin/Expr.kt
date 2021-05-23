@@ -1,14 +1,22 @@
 package dev.mee42
 
 sealed class Expr(val type: Type) {
+    sealed interface LValue
     class Block(val label: LabelIdentifier, val contents: List<Expr>, t: Type): Expr(t)
     class Return(val expr: Expr): Expr(expr.type)
     class NumericalLiteral(val i: Int): Expr(Type.Builtin("Int")) // TODO add more
     class StringLiteral(val content: String): Expr(Type.Pointer(Type.Builtin("Char")))
+    class CharLiteral(val char: Char): Expr(Type.Builtin("Char"))
     class BinaryOp(val left: Expr, val right: Expr, val op: Operator, t: Type): Expr(t)
     class FunctionCall(val header: FunctionHeader, val arguments: List<Expr>): Expr(header.returnType)
+    class VariableDefinition(val variableName: VariableIdentifier, val value: Expr, val isConst: Boolean, t: Type): Expr(t)
+    class VariableAccess(val variableName: VariableIdentifier, val isConst: Boolean, t: Type): Expr(t), LValue
+    class StructDefinition(val t: Type.Struct, val members: List<Pair<VariableIdentifier, Expr>>): Expr(t)
+    class If(val cond: Expr, val ifBlock: Expr, val elseBlock: Expr?, t: Type): Expr(t)
 }
-enum class Operator(val op: String){ ADD("+"), SUB("-") }
+enum class Operator(val op: String){ ADD("+"), SUB("-"), TIMES("*"), DIVIDE("/") }
+
+
 
 
 // passed around to every compileExpr call
@@ -32,7 +40,8 @@ fun compileFunctionBlock(block: UntypedExpr.Block,
                          untypedStructs: List<UntypedStruct>, // for typing purposes
                          genericNames: Set<TypeIdentifier>, // in 'func[A, B, C] foo() {}' it's { A, B, C }
                          removeGenerics: (Type) -> Type,
-                         specializeFunction: (GenericFunction, List<Type>) -> FunctionHeader): Expr.Block {
+                         specializeFunction: (GenericFunction, List<Type>) -> FunctionHeader,
+                         arguments: List<Argument>): Expr.Block {
 
     fun typeMapper(type: UnrealizedType): Type {
         val pass1 = initialTypePass(type, untypedStructs, genericNames)
@@ -48,20 +57,28 @@ fun compileFunctionBlock(block: UntypedExpr.Block,
         specializeFunction = specializeFunction
     )
 
-    return ast.compileFunctionBlock(block)
+    return ast.compileFunctionBlock(block, arguments)
 }
 
-private fun Env.compileFunctionBlock(block: UntypedExpr.Block): Expr.Block {
+private fun Env.compileFunctionBlock(block: UntypedExpr.Block, arguments: List<Argument>): Expr.Block {
     // TODO label and shit support
     //     at the moment we'll just just... idk
     // we'll make the return type of block the same as all the top-level return statements
     // TODO make this support yield/return/shit
-
-    val statements = block.sub.map { compileExpr(it) }
+    val scope = Scope(
+        variables = arguments.map { (name, type) -> Variable(name, type, true) }.toMutableList(),
+        null
+    )
+    return compileBlock(block, scope)
+}
+private fun Env.compileBlock(block: UntypedExpr.Block, scope: Scope): Expr.Block {
+    // TODO same as above - label support
+    val newScope = Scope(mutableListOf(), scope)
+    val statements = block.sub.map { compileExpr(it, newScope) }
 
     val retTypes = statements.filterIsInstance<Expr.Return>().map { it.type }
     val retType = if (retTypes.isEmpty()) {
-        Type.Unit
+        Type.Unit// TODO we know this is going to be like this, just ignore for now, do later
     } else {
         for(i in retTypes) if(i != retTypes[0]) error("conflicting return types, got both $i and ${retTypes[0]}")
         retTypes[0]
@@ -71,33 +88,31 @@ private fun Env.compileFunctionBlock(block: UntypedExpr.Block): Expr.Block {
 }
 
 
+private data class Scope(val variables: MutableList<Variable>, val parent: Scope?) {
+    fun lookupVariable(name: VariableIdentifier): Variable? = variables.firstOrNull { it.name == name } ?: parent?.lookupVariable(name)
+}
+data class Variable(val name: VariableIdentifier, val type: Type, val isConst: Boolean)
 
-
-private fun Env.compileExpr(expr: UntypedExpr): Expr = when(expr){
-    is UntypedExpr.Assignment -> TODO()
+// will mutate scope if a variable is defined
+private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
     is UntypedExpr.BinaryOp -> {
-        val left = compileExpr(expr.left)
-        val right = compileExpr(expr.right)
+        val left = compileExpr(expr.left, scope)
+        val right = compileExpr(expr.right, scope)
         when (expr.op) {
             // this is going to need some work
-            "+" -> {
-                if (left.type != right.type) error("Can't add values of types ${left.type} and ${right.type} together")
-                if (left.type != Type.Builtin("Int")) error("Attempting to add type ${left.type}, only supported type is Int")
-                Expr.BinaryOp(left, right, Operator.ADD, Type.Builtin("Int"))
-            }
-            "-" -> {
-                if (left.type != right.type) error("Can't subtract values of typees ${left.type} and ${right.type} together")
-                if (left.type != Type.Builtin("Int")) error("Attempting to subtract type ${left.type}, only supported type is Int")
-                Expr.BinaryOp(left, right, Operator.SUB, Type.Builtin("Int"))
+            "+", "-", "*", "/" -> {
+                val verb = when(expr.op) { "+" -> "add"; "-" -> "subtract"; "*" -> "multiply"; "/" -> "divide"; else -> error("ICE")}
+                if (left.type != right.type) error("Can't $verb values of types ${left.type} and ${right.type} together")
+                if (left.type != Type.Builtin("Int")) error("Attempting to $verb type ${left.type}, only supported type is Int")
+                val operator = Operator.values().first { it.op == expr.op }
+                Expr.BinaryOp(left, right, operator, Type.Builtin("Int"))
             }
             else -> error("unknown binary operator " + expr.op)
         }
     }
-    is UntypedExpr.Block -> TODO()
-    is UntypedExpr.CharLiteral -> TODO()
+    is UntypedExpr.CharLiteral -> Expr.CharLiteral(expr.char)
     is UntypedExpr.FunctionCall -> {
         // TODO add bidirectional type assumption so generics don't always need to be specified
-
 
         // INTRINSIC:
         if(expr.functionName == "sizeof") {
@@ -107,33 +122,101 @@ private fun Env.compileExpr(expr: UntypedExpr): Expr = when(expr){
             Expr.NumericalLiteral(size)
         } else {
 
-
             // grab the function we need
             val genericFunction =
                 functions[expr.functionName] ?: error("Can't find function called ${expr.functionName}")
             val generics = expr.generics.map { typeMapper(it) }
             val specializedFunction = specializeFunction(genericFunction, generics)
 
-            val arguments = expr.arguments.map { compileExpr(it) }
+            val arguments = expr.arguments.map { compileExpr(it, scope) }
             for ((real, expected) in arguments.map { it.type }.zip(specializedFunction.arguments.map { it.type })) {
                 if (real != expected) error("in function arguments, expected expression to be of type $expected, but got type of $real")
             }
             Expr.FunctionCall(specializedFunction, arguments)
         }
     }
-    is UntypedExpr.If -> TODO()
-    is UntypedExpr.MemberAccess -> TODO()
     is UntypedExpr.NumericalLiteral -> Expr.NumericalLiteral(expr.number.toInt())
-    is UntypedExpr.PrefixOp -> TODO()
-    is UntypedExpr.Return -> Expr.Return(compileExpr(expr.expr))
+    is UntypedExpr.Return -> Expr.Return(compileExpr(expr.expr, scope))
     is UntypedExpr.StringLiteral -> Expr.StringLiteral(expr.content)
-    is UntypedExpr.StructDefinition -> TODO()
-    is UntypedExpr.VariableAccess -> TODO()
-    is UntypedExpr.VariableDefinition -> TODO()
+    is UntypedExpr.StructDefinition -> {
+        val structType = this.typeMapper(expr.type ?: error("type assumption for struct definitions not supported yet"))
+        if(structType !is Type.Struct) {
+            error("Can't define struct with non-struct type" + structType.str())
+        }
+        val structName = structType.name
+        val structDef = structs[structName] ?: error("no struct named $structName found")
+        val expectedFields = fieldsFor(structDef, structType)
+        val parsedFields = expr.members.map { (identifier, value) ->
+            val subExpr = compileExpr(value, scope)
+            val (_, realType) = expectedFields.firstOrNull { (name, _) -> name == identifier }
+                ?: error("Struct $structName does not have a member $identifier")
+            if(realType != subExpr.type) {
+                error("Expecting type ${realType.str()} but got expr of type ${subExpr.type.str()} ")
+            }
+            identifier to subExpr
+        }
+        // TODO think about default initialization, zero initialization, etc
+        if(parsedFields.size != expectedFields.size) {
+            val missing = expectedFields
+                .filter { (n, _) -> parsedFields.none { (nn, _) -> nn == n }  }
+                .map{ (_, t) -> t }
+            error("In struct definition ${structType.str()}, missing fields: $missing")
+        }
+        // make sure we covered all of them
+        Expr.StructDefinition(structType, parsedFields)
+    }
+    is UntypedExpr.VariableDefinition -> {
+        val variableName = expr.variableName
+        val isConst = expr.isConst
+        val writtenType = expr.type
+        val value = compileExpr(expr.value ?: error("default initialization not supported yet"), scope)
+        if(writtenType != null) {
+            if(writtenType != value.type) {
+                error("defined variable $variableName as type ${writtenType.str()} but got ${value.type.str()}")
+            }
+        }
+        if(scope.lookupVariable(variableName) != null) {
+            error("trying to define variable named $variableName when a variable with the same name is already defined")
+        }
+        scope.variables += Variable(variableName, value.type, isConst)
+        Expr.VariableDefinition(variableName, isConst = isConst, t = value.type, value = value)
+    }
+    is UntypedExpr.VariableAccess -> {
+        val variable = scope.lookupVariable(expr.variableName) ?: error("no variable in scope named ${expr.variableName}")
+        // TODO check for constness when used as lvalue?
+        Expr.VariableAccess(expr.variableName, variable.isConst, variable.type)
+    }
+    is UntypedExpr.Block -> compileBlock(expr, scope)
+    // NEED TO DO
+    is UntypedExpr.If -> {
+        // TODO make Bool type
+        val cond = compileExpr(expr.cond, scope)
+        val ifBlock = compileExpr(expr.ifBlock, scope)
+        val elseBlock = if(expr.elseBlock != null) compileExpr(expr.elseBlock, scope) else null
+        if(cond.type != Type.Builtin("Int")) error("Condition must return value of type Int, not ${cond.type.str()}")
+        val type = if(elseBlock == null) {
+            Type.Builtin("Unit")
+        } else if(elseBlock.type != ifBlock.type) {
+            Type.Builtin("Unit") // TODO figure out what to do here
+        } else ifBlock.type
+        Expr.If(cond, ifBlock, elseBlock, type)
+    }
+    is UntypedExpr.MemberAccess -> TODO()
+    is UntypedExpr.PrefixOp -> TODO()
+    is UntypedExpr.Assignment -> TODO()
 
+
+    // put off for later probably
     is UntypedExpr.Loop -> TODO("not supported yet")
     is UntypedExpr.Continue -> TODO("not supported yet")
     is UntypedExpr.Yield -> TODO("not supported yet")
+}
+
+// figures out all the fields in a struct
+// based on the template specification
+fun fieldsFor(struct: GenericStruct, type: Type.Struct): List<Pair<VariableIdentifier, Type>> {
+    val info = struct.genericTypes.mapIndexed { index, s -> s to type.genericTypes[index] }.toMap()
+    return struct.fields.map { (type, name) -> name to type.replaceGenerics(info) }
 }
 
 

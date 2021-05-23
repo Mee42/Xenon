@@ -7,6 +7,8 @@ Goals, in no particular order:
 - [x] Grammar 
 - [x] Parser
 - [ ] Semantic analysis, type checking (in process)
+- [ ] bidirectional type assumption
+- [ ] proper integer types
 - [ ] [TVM](https://github.com/adrian154/tvm) backend
 - [ ] x86 backend
 - [ ] Nice CLI frontend

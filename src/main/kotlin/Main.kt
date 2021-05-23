@@ -95,7 +95,7 @@ fun Expr.str(indent: String, needsToIndent: Boolean = false, needParens: Boolean
     val i = if(needsToIndent) indent else ""
     fun paren(x: String) = if(needParens) "($x)" else x
     return when(this) {
-        is Expr.BinaryOp -> i + paren(left.str(indent, needParens = true) + " $op " + right.str(indent, needParens = true))
+        is Expr.BinaryOp -> i + paren(left.str(indent, needParens = true) + " ${op.op} " + right.str(indent, needParens = true))
         is Expr.Block ->
             i + clean(label) + "{\n" + this.contents.joinToString("\n") { it.str("$indent    ", true) + ";" } + "\n$indent}"
         is Expr.FunctionCall -> i + this.header.name +
@@ -104,8 +104,18 @@ fun Expr.str(indent: String, needsToIndent: Boolean = false, needParens: Boolean
         is Expr.NumericalLiteral -> i + this.i
         is Expr.Return -> i + "return " + expr.str(indent)
         is Expr.StringLiteral -> i + '"' + content + '"'
+        is Expr.CharLiteral -> "$i'$char'"
+        is Expr.VariableAccess -> variableName
+        is Expr.VariableDefinition -> (if(isConst) "val " else "var ") + type.str() + " " + this.variableName + " = " + value.str(indent)
+        is Expr.StructDefinition -> i + "struct " + type.str() + " {\n" + this.members.joinToString(",\n") {  (name, expr) ->
+            "$indent    .$name = " + expr.str("$indent    ")
+        } + "\n$indent}"
+        is Expr.If -> i + "if(" + cond.str(indent) + ") " + ifBlock.str(indent) + (elseBlock?.str(indent)?.let {" else $it"} ?: "")
     }
 }
+
+
+
 fun UnrealizedType.str(): String = when(this) {
     UnrealizedType.Nothing -> "Nothing"
     is UnrealizedType.Pointer -> this.subType.str() + "*"

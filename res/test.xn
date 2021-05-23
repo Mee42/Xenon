@@ -1,4 +1,4 @@
-func [T, R] cast(T t) R {}
+func [T, R] cast(T t) R {}// intrinsic
 
 struct[T] List {
     Int size;
@@ -13,14 +13,27 @@ struct[T] Foo {
     List[Pair[T, T]] list;
 }
 
-func[T] malloc() T* {
-    return cast::[Int, T*](sizeof::[T]());
+func[T] malloc(Int count) T* {
+    return cast::[Int, T*](sizeof::[T]() * count);
     // just returns the number of bytes in the size thing
     // for testing
 }
+func print(Char* x) {}
+
 func foo() {
-   malloc::[Int]();
-   malloc::[Char]();
+   val cond = 7;
+   val Int x = if(cond) {
+        print("true!");
+        return 7;
+   } else {
+        print("not true");
+        return 8;
+   };
+
+   val pair = struct Pair[Int*, Char*] {
+        .a = malloc::[Int](3),
+        .b = malloc::[Char](7)
+   };
 }
 
 
