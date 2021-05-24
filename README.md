@@ -7,12 +7,19 @@ Immediate TODOs:
 - [x] Grammar 
 - [x] Parser
 - [x] Semantic analysis, type checking (in process)
-- [ ] loop support
-- [ ] bidirectional type assumption
-- [ ] proper integer types
+- [ ] Proper integer types
+- [ ] Loop support
+- [ ] Arrays
+- [ ] [TVM](https://github.com/adrian154/tvm) backend
 
-Goals, in no particular order:
-- [ ] **[TVM](https://github.com/adrian154/tvm) backend**
+
+
+Xenon 1.1 features:
+- [ ] Closures/Lambdas
+- [ ] Function Types
+- [ ] bidirectional type assumption
+
+Longer term goals:
 - [ ] x86 backend
 - [ ] Nice CLI frontend
 - [ ] JS support for the compiler
