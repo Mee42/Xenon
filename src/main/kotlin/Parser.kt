@@ -101,11 +101,37 @@ private fun parseBlock(block: Token.Bracketed, label: LabelIdentifier? = null): 
     // parseExpression, delim by semicolon
     val tokens = block.contents.splitBy { it == Token.Symbol(";") }
     val expressions = tokens.map(::parseExpression)
-    // TODO make blocks able to evaluate to a value eventually
     return UntypedExpr.Block(expressions, label)
 
 }
 
+
+enum class Precedence(val v: Int) {
+
+    BOTTOM(1000),
+
+    MEMBER_ACCESS(0), // a.b a->b
+    FUNCTION_CALL(0), // <expr>(foo)
+    ARRAY_SUBSCRIPT(0), // <expr>[foo]
+
+    PREFIX_OP(1), // * &
+
+    MULT_AND_DIV(2), // * /
+
+    ADD_AND_SUB(3), // + -
+
+    BITWISE_SHIFT(4), // >> <<
+
+    COMPARISON(5), // < > <= >=
+
+    EQUALS(6), // == !=
+
+    BITWISE_OP(7), // &, ^, |, &
+
+    ASSIGNMENT(8), // a = b
+
+    // TODO: a comma op?
+}
 
 private fun parseExpression(tokens: List<Token>): UntypedExpr {
     // okai what do we have here
@@ -119,7 +145,7 @@ private fun parseExpression(tokens: List<Token>): UntypedExpr {
     // prefix operator     | <op> <expr>
 
     // we delegate out to a pratt parsing when parsing expressions
-    return parseExprPratt(ArrayDeque(tokens), -1)
+    return parseExprPratt(ArrayDeque(tokens), Precedence.BOTTOM)
 }
 
 
@@ -129,7 +155,7 @@ private interface PrefixParselet {
 }
 private class PrefixOpParselet(private val op: String): PrefixParselet {
     override fun parse(tokens: ArrayDeque<Token>, token: Token): UntypedExpr {
-        return UntypedExpr.PrefixOp(parseExprPratt(tokens, 5), op)
+        return UntypedExpr.PrefixOp(parseExprPratt(tokens, Precedence.PREFIX_OP), op)
     }
 
     override fun accepts(token: Token): Boolean {
@@ -151,13 +177,11 @@ private val prefixParselets: List<PrefixParselet> by lazy {
 
             override fun accepts(token: Token) = token is Token.NumericalLiteral
         },
-        PrefixOpParselet("-"),
-        PrefixOpParselet("!"),
         PrefixOpParselet("*"),
         PrefixOpParselet("&"),
-        object: PrefixParselet {
+        object: PrefixParselet { // return expression
             override fun parse(tokens: ArrayDeque<Token>, token: Token) =
-                UntypedExpr.Return(parseExprPratt(tokens, -1))
+                UntypedExpr.Return(parseExprPratt(tokens, Precedence.BOTTOM))
 
             override fun accepts(token: Token): Boolean {
                 return token == Token.Keyword(Keyword.RETURN)
@@ -184,7 +208,7 @@ private val prefixParselets: List<PrefixParselet> by lazy {
                     // expect a = be next
                     if(tokens.firstOrNull() == Token.Symbol("=")) {
                         tokens.removeFirst()
-                        parseExprPratt(tokens, -1)
+                        parseExprPratt(tokens, Precedence.BOTTOM)
                     } else {
                         error("was expecting '=', but got ${tokens.firstOrNull()}")
                     }
@@ -212,11 +236,11 @@ private val prefixParselets: List<PrefixParselet> by lazy {
                     .assertType<Token.Bracketed>()
                     .assertCharIs(BracketChar.PAREN)
                     .contents.let(::parseExpression)
-                val firstExpr = parseExprPratt(tokens, -1) // pls stop at the 'else'
+                val firstExpr = parseExprPratt(tokens, Precedence.BOTTOM) // pls stop at the 'else' MIGHT BE BUG
                 val secondExpr = if(tokens.firstOrNull() == Token.Keyword(Keyword.ELSE)) {
                     // there's an else clause
                     tokens.removeFirst().assertEq(Token.Keyword(Keyword.ELSE))
-                    parseExprPratt(tokens, -1); // wonderful
+                    parseExprPratt(tokens, Precedence.BOTTOM); // wonderful
                 } else null
 
                 return UntypedExpr.If(conditional, firstExpr, secondExpr)
@@ -262,7 +286,7 @@ private val prefixParselets: List<PrefixParselet> by lazy {
 
             override fun accepts(token: Token) = token is Token.Label
         },
-        object: PrefixParselet {
+        object: PrefixParselet { // yield <x>;
             override fun parse(tokens: ArrayDeque<Token>, token: Token): UntypedExpr {
                 val label = if(tokens.size > -1 && tokens.first() is Token.Label) {
                     tokens.removeFirst().assertType<Token.Label>().label
@@ -271,7 +295,7 @@ private val prefixParselets: List<PrefixParselet> by lazy {
                         tokens.first() == Token.Symbol(";") ||
                         tokens.first() == Token.Symbol(",") ||
                         tokens.first() == Token.Keyword(Keyword.ELSE)
-                val value = if(!hasNoValue) parseExprPratt(tokens, -1) else null
+                val value = if(!hasNoValue) parseExprPratt(tokens, Precedence.BOTTOM) else null
                 return UntypedExpr.Yield(value, label)
             }
             override fun accepts(token: Token) = token == Token.Keyword(Keyword.YIELD)
@@ -323,19 +347,20 @@ private val prefixParselets: List<PrefixParselet> by lazy {
 private interface InfixParselet {
     fun parse(tokens: ArrayDeque<Token>, left: UntypedExpr, token: Token): UntypedExpr
     fun accepts(token: Token): Boolean
-    fun precedence(): Int
+    fun precedence(): Precedence
 }
-private class BinaryOpParselet(private val op: String, private val precedence: Int): InfixParselet {
+private class BinaryOpParselet(private val op: String, private val precedence: Precedence): InfixParselet {
     override fun parse(tokens: ArrayDeque<Token>, left: UntypedExpr, token: Token) =
         UntypedExpr.BinaryOp(left, parseExprPratt(tokens, precedence), op)
 
     override fun accepts(token: Token) = token is Token.Symbol && token.op == op
-    override fun precedence(): Int = precedence
-
+    override fun precedence(): Precedence = precedence
 }
 private val infixParselets: List<InfixParselet> = listOf(
-    BinaryOpParselet("+", 3), BinaryOpParselet("*", 4),
-    BinaryOpParselet("-", 3), BinaryOpParselet("==", 5),
+    BinaryOpParselet("+", Precedence.ADD_AND_SUB),
+    BinaryOpParselet("-", Precedence.ADD_AND_SUB),
+    BinaryOpParselet("*", Precedence.MULT_AND_DIV), // TODO ADD THE REST
+    BinaryOpParselet("==", Precedence.EQUALS),
 
     object: InfixParselet {
         override fun parse(tokens: ArrayDeque<Token>, left: UntypedExpr, token: Token): UntypedExpr {
@@ -361,7 +386,7 @@ private val infixParselets: List<InfixParselet> = listOf(
             val subTokens = ArrayDeque(argumentTokens.assertType<Token.Bracketed>().assertCharIs(BracketChar.PAREN).contents)
 
             while (subTokens.isNotEmpty()) {
-                arguments += parseExprPratt(subTokens, 0)
+                arguments += parseExprPratt(subTokens, Precedence.BOTTOM)
                 when(val x = subTokens.removeFirstOrNull()) {
                     Token.Symbol(",") -> continue
                     null -> break
@@ -384,7 +409,7 @@ private val infixParselets: List<InfixParselet> = listOf(
 
         override fun accepts(token: Token) = (token is Token.Bracketed && token.char == BracketChar.PAREN) || (token is Token.Symbol && token.op == "::")
 
-        override fun precedence() = 10
+        override fun precedence() = Precedence.FUNCTION_CALL
     },
     object: InfixParselet {
         override fun parse(tokens: ArrayDeque<Token>, left: UntypedExpr, token: Token): UntypedExpr {
@@ -395,7 +420,7 @@ private val infixParselets: List<InfixParselet> = listOf(
 
         override fun accepts(token: Token) = token == Token.Symbol(".") || token == Token.Symbol("->")
 
-        override fun precedence() = 9
+        override fun precedence() = Precedence.MEMBER_ACCESS
     },
     object: InfixParselet {
         override fun parse(tokens: ArrayDeque<Token>, left: UntypedExpr, token: Token): UntypedExpr {
@@ -404,7 +429,7 @@ private val infixParselets: List<InfixParselet> = listOf(
 
         override fun accepts(token: Token) = token == Token.Symbol("=")
 
-        override fun precedence() = 8 // TODO check?
+        override fun precedence() = Precedence.ASSIGNMENT
     },
     object: InfixParselet {
         override fun parse(tokens: ArrayDeque<Token>, left: UntypedExpr, token: Token): UntypedExpr {
@@ -417,12 +442,12 @@ private val infixParselets: List<InfixParselet> = listOf(
 
         override fun accepts(token: Token) = token is Token.Bracketed && token.char == BracketChar.SQUARE_BRACKETS
 
-        override fun precedence(): Int = 8 // TODO ????
+        override fun precedence() = Precedence.ARRAY_SUBSCRIPT
     }
 )
 
 
-private fun parseExprPratt(tokens: ArrayDeque<Token>, precedence: Int): UntypedExpr {
+private fun parseExprPratt(tokens: ArrayDeque<Token>, precedence: Precedence): UntypedExpr {
     val first = tokens.removeFirst()
 
     val prefixHandler = prefixParselets.firstOrNull { it.accepts(first)  }
@@ -435,7 +460,7 @@ private fun parseExprPratt(tokens: ArrayDeque<Token>, precedence: Int): UntypedE
         if(nextToken == Token.Symbol(";") || nextToken == Token.Symbol(",") || nextToken == Token.Keyword(Keyword.ELSE)) break
         val infixHandler = infixParselets.firstOrNull { it.accepts(nextToken) }
             ?: error("can't parse token $nextToken as an infix operator")
-        if(precedence >= infixHandler.precedence()) {
+        if(precedence.v <= infixHandler.precedence().v) {
             break
         }
         tokens.removeFirst() // we didn't remove it early, so now we want to

@@ -2,14 +2,17 @@
 
 This language will eventually have multiple backends, the two primary ones being [TVM](https://github.com/adrian154/tvm) and x86_64.
 
-Goals, in no particular order:
+Immediate TODOs:
 - [x] Lexer
 - [x] Grammar 
 - [x] Parser
-- [ ] Semantic analysis, type checking (in process)
+- [x] Semantic analysis, type checking (in process)
+- [ ] loop support
 - [ ] bidirectional type assumption
 - [ ] proper integer types
-- [ ] [TVM](https://github.com/adrian154/tvm) backend
+
+Goals, in no particular order:
+- [ ] **[TVM](https://github.com/adrian154/tvm) backend**
 - [ ] x86 backend
 - [ ] Nice CLI frontend
 - [ ] JS support for the compiler

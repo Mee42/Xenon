@@ -1,5 +1,6 @@
 package dev.mee42
 
+import java.lang.IllegalStateException
 
 
 // unspecialized
@@ -54,7 +55,10 @@ fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
 
     fun specialized(genericFunction: GenericFunction, genericTypes: List<Type>): FunctionHeader {
         // generate the header
-        if(genericFunction.generics.size != genericTypes.size) error("got $genericTypes but was trying to fill generic type list ${genericFunction.generics} and the sizes did not match")
+        if(genericFunction.generics.size != genericTypes.size) {
+            error("ICE: got $genericTypes but was trying to fill generic type list ${genericFunction.generics} and the sizes did not match, " +
+                    "while compiling specalization for function named ${genericFunction.name}")
+        }
         val genericMap = genericFunction.generics.zip(genericTypes).toMap()
         // generate function header for the type
         val header = FunctionHeader(
@@ -85,22 +89,26 @@ fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
         val function = compileQueue.removeFirst()
         if(compiledFunctions.containsKey(function)) continue // skip, already done!
         if(function.name == "cast") continue // INTRINSIC: idk how else to implement this
-        val body = compileFunctionBlock(
-            block = functions.first { it.name == function.name }.body, // just look up the body
-            functions = functions,
-            structs = structs,
-            untypedStructs = untypedAST.structs,
-            genericNames = function.genericNames.toSet(),
-            removeGenerics = { it.replaceGenerics(function.genericsInfo) },
-            specializeFunction = ::specialized,
-            arguments = function.arguments
-        )
+        val body = try {
+            compileFunctionBlock(
+                block = functions.first { it.name == function.name }.body, // just look up the body
+                functions = functions,
+                structs = structs,
+                untypedStructs = untypedAST.structs,
+                genericNames = function.genericNames.toSet(),
+                removeGenerics = { it.replaceGenerics(function.genericsInfo) },
+                specializeFunction = ::specialized,
+                arguments = function.arguments
+            )
+        }catch(e: IllegalStateException) {
+            throw IllegalStateException("while compiling function ${function.name}", e)
+        }
         val compiledFunction = Function(
             header = function,
             body = body
         )
         if(compiledFunction.body.type != function.returnType) {
-            error("Function ${function.name} returns ${function.returnType} but the body return type is ${compiledFunction.body.type}") // TODO add generic info to error mesage
+            error("Function ${function.name} returns ${function.returnType} but the body return type is ${compiledFunction.body.type}")
         }
         compiledFunctions[function] = compiledFunction
     }
@@ -138,7 +146,7 @@ fun generateGenericStructs(structs: List<UntypedStruct>): List<GenericStruct> {
 }
 
 
-val intrinsicNames = setOf("Int", "Char") //TODO make better
+val builtinNames = setOf("Int", "Char") //TODO make better
 
 // this goes over and types all the types
 // this does NOT replace any generics or anything
@@ -147,7 +155,7 @@ val intrinsicNames = setOf("Int", "Char") //TODO make better
 fun initialTypePass(type: UnrealizedType, structs: List<UntypedStruct>, genericNames: Set<TypeIdentifier>): Type = when(type){
     is UnrealizedType.NamedType -> {
         when {
-            type.name in intrinsicNames -> {
+            type.name in builtinNames -> {
                 if (type.genericTypes.isNotEmpty()) error("Not expecting generic types on ${type.name}")
                 Type.Builtin(type.name)
             }

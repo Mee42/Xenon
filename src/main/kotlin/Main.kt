@@ -13,7 +13,7 @@ fun main() {
     println("\nparsing...")
     val ast = paintAllYields(parse(tokens))
     println("ast: $ast")
-//    println(ast.str())
+    println(ast.str())
     println("\ntyping...")
     val (functions, structs) = type(ast)
     println(structs.joinToString("\n") { it.str() })
@@ -66,7 +66,7 @@ fun clean(label: LabelIdentifier?): String {
 
 fun UntypedExpr.str(indent: String, needsToIndent: Boolean = false, needParens: Boolean = false): String {
     val i = if(needsToIndent) indent else ""
-    fun paren(x: String) = if(needParens) "($x)" else x
+    fun paren(x: String) = if(needParens || true) "($x)" else x
     return when(this) {
         is UntypedExpr.Assignment -> i + paren("${left.str(indent)} = ${right.str(indent)}")
         is UntypedExpr.BinaryOp -> i + paren(left.str(indent, needParens = true) + " $op " + right.str(indent, needParens = true))
@@ -111,6 +111,10 @@ fun Expr.str(indent: String, needsToIndent: Boolean = false, needParens: Boolean
             "$indent    .$name = " + expr.str("$indent    ")
         } + "\n$indent}"
         is Expr.If -> i + "if(" + cond.str(indent) + ") " + ifBlock.str(indent) + (elseBlock?.str(indent)?.let {" else $it"} ?: "")
+        is Expr.Deref -> "*" + expr.str(indent)
+        is Expr.MemberAccess -> this.expr.str(indent) + (if(isArrow) "->" else ".") + this.memberName
+        is Expr.Ref -> "&" + expr.str(indent)
+        is Expr.Assignment -> left.str(indent) + " = " + right.str(indent)
     }
 }
 

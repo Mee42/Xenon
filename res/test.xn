@@ -30,44 +30,44 @@ func foo() {
         return 8;
    };
 
-   val pair = struct Pair[Int*, Char*] {
+   val Pair[Int*, Char*] pair = struct Pair[Int*, Char*] {
         .a = malloc::[Int](3),
         .b = malloc::[Char](7)
    };
+   *((&pair)->a) = 7;
+   *pair.a = 7;
 }
 
 
-//func[T] realloc(T* ptr, Int size) T*  {
-//    // ...
-//}
-//
-//func[T] newList() List[T] {
-//    return struct List[T] { // the type 'List[T]' is optional when can be inferred
-//        .size      = 0,
-//        .allocated = 10,
-//        .data      = malloc::[T](10),
-//    };
-//}
-//
-//func[T] (List[T]* self).add(T element) {
-//    if(self->size == self->allocated) {
-//        self->allocated = self->allocated * 2; // TODO add a =* operator
-//        self->data = realloc::[T](self->data, self->allocated);
-//    };
-//    // TODO add a ++ operator
-//    self->size = self->size + 1;
-//    self->data[self->size] = element;
-//}
-//
-//func main() Int {
-//   val List[Int]* numbers = newList();
-//   numbers.add(7);
-//   numbers.add(8);
-//   (&numbers)->add(3);
-//}
-//
-//
+func[T] realloc(T* ptr, Int size) T*  {
+    return ptr // who cares honetly
+}
 
+func[T] newList() List[T] {
+    return struct List[T] { // the type 'List[T]' is optional when can be inferred
+        .size      = 0,
+        .allocated = 10,
+        .data      = malloc::[T](10),
+    };
+}
+
+func[T] (List[T]* self).add(T element) {
+    if(self->size == self->allocated) {
+        self->allocated = self->allocated * 2; // TODO add a =* operator
+        self->data = realloc::[T](self->data, self->allocated);
+    };
+    // TODO add a ++ operator
+    self->size = self->size + 1;
+    self->data[self->size] = element;
+}
+
+func main() Int {
+   val List[Int] numbers = newList::[Int]();
+   add::[Int](&numbers, 7);
+   add::[Int](&numbers, 8);
+   (&numbers).add::[Int](3);
+    return 0;
+}
 
 
 

@@ -1,7 +1,6 @@
 package dev.mee42
 
 sealed class Expr(val type: Type) {
-    sealed interface LValue
     class Block(val label: LabelIdentifier, val contents: List<Expr>, t: Type): Expr(t)
     class Return(val expr: Expr): Expr(expr.type)
     class NumericalLiteral(val i: Int): Expr(Type.Builtin("Int")) // TODO add more
@@ -10,11 +9,30 @@ sealed class Expr(val type: Type) {
     class BinaryOp(val left: Expr, val right: Expr, val op: Operator, t: Type): Expr(t)
     class FunctionCall(val header: FunctionHeader, val arguments: List<Expr>): Expr(header.returnType)
     class VariableDefinition(val variableName: VariableIdentifier, val value: Expr, val isConst: Boolean, t: Type): Expr(t)
-    class VariableAccess(val variableName: VariableIdentifier, val isConst: Boolean, t: Type): Expr(t), LValue
+    class VariableAccess(val variableName: VariableIdentifier, val isConst: Boolean, t: Type): Expr(t)
     class StructDefinition(val t: Type.Struct, val members: List<Pair<VariableIdentifier, Expr>>): Expr(t)
     class If(val cond: Expr, val ifBlock: Expr, val elseBlock: Expr?, t: Type): Expr(t)
+    class MemberAccess(val expr: Expr, val memberName: VariableIdentifier, val isArrow: Boolean, t: Type): Expr(t)
+    class Ref(val expr: Expr): Expr(Type.Pointer(expr.type))
+    class Deref(val expr: Expr, t: Type): Expr(t) {
+        init { if(Type.Pointer(t) != expr.type) error("ICE") }
+    }
+    class Assignment(val left: Expr, val right: Expr): Expr(left.type) {
+        init { if(left.type != right.type) error("ICE") }
+    }
 }
-enum class Operator(val op: String){ ADD("+"), SUB("-"), TIMES("*"), DIVIDE("/") }
+
+fun Expr.isLValue(): Boolean = when(this) {
+    is Expr.Deref -> true
+    is Expr.VariableAccess -> true
+    is Expr.MemberAccess -> isArrow || expr.isLValue()
+    else -> false
+}
+
+enum class Operator(val op: String){
+    ADD("+"), SUB("-"), TIMES("*"), DIVIDE("/"),
+    EQUALS("=="),NOT_EQUALS("!=")
+}
 
 
 
@@ -99,13 +117,31 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
         val left = compileExpr(expr.left, scope)
         val right = compileExpr(expr.right, scope)
         when (expr.op) {
-            // this is going to need some work
-            "+", "-", "*", "/" -> {
-                val verb = when(expr.op) { "+" -> "add"; "-" -> "subtract"; "*" -> "multiply"; "/" -> "divide"; else -> error("ICE")}
+            // TODO this is going to need some work
+            "+" -> {
+                val leftType = left.type
+                val rightType = right.type
+                val isValid =
+                    (leftType == Type.Builtin("Int") && rightType == Type.Builtin("Int")) ||
+                    (leftType == Type.Builtin("Int") && rightType is Type.Pointer) ||
+                    (leftType is Type.Pointer && rightType == Type.Builtin("Int"))
+                if(!isValid) error("illegal to add $leftType and $rightType together")
+                val type = when {
+                    leftType is Type.Pointer -> leftType
+                    rightType is Type.Pointer -> rightType
+                    else -> Type.Builtin("Int")
+                }
+                Expr.BinaryOp(left, right, Operator.ADD, type)
+            }
+            "-", "*", "/" -> {
+                val verb = when(expr.op) {"-" -> "subtract"; "*" -> "multiply"; "/" -> "divide"; else -> error("ICE")}
                 if (left.type != right.type) error("Can't $verb values of types ${left.type} and ${right.type} together")
                 if (left.type != Type.Builtin("Int")) error("Attempting to $verb type ${left.type}, only supported type is Int")
                 val operator = Operator.values().first { it.op == expr.op }
                 Expr.BinaryOp(left, right, operator, Type.Builtin("Int"))
+            }
+            "==", "!=" -> {
+               Expr.BinaryOp(left, right, if(expr.op == "==") Operator.EQUALS else Operator.NOT_EQUALS, Type.Builtin("Int"))
             }
             else -> error("unknown binary operator " + expr.op)
         }
@@ -126,6 +162,9 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
             val genericFunction =
                 functions[expr.functionName] ?: error("Can't find function called ${expr.functionName}")
             val generics = expr.generics.map { typeMapper(it) }
+            if(genericFunction.generics.size != generics.size) {
+                error("calling function ${genericFunction.name}, expecting generic arguments ${genericFunction.generics} but found $generics, sizes did not match")
+            }
             val specializedFunction = specializeFunction(genericFunction, generics)
 
             val arguments = expr.arguments.map { compileExpr(it, scope) }
@@ -168,7 +207,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
     is UntypedExpr.VariableDefinition -> {
         val variableName = expr.variableName
         val isConst = expr.isConst
-        val writtenType = expr.type
+        val writtenType = expr.type?.let(typeMapper)
         val value = compileExpr(expr.value ?: error("default initialization not supported yet"), scope)
         if(writtenType != null) {
             if(writtenType != value.type) {
@@ -187,23 +226,71 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
         Expr.VariableAccess(expr.variableName, variable.isConst, variable.type)
     }
     is UntypedExpr.Block -> compileBlock(expr, scope)
-    // NEED TO DO
     is UntypedExpr.If -> {
         // TODO make Bool type
         val cond = compileExpr(expr.cond, scope)
         val ifBlock = compileExpr(expr.ifBlock, scope)
         val elseBlock = if(expr.elseBlock != null) compileExpr(expr.elseBlock, scope) else null
         if(cond.type != Type.Builtin("Int")) error("Condition must return value of type Int, not ${cond.type.str()}")
-        val type = if(elseBlock == null) {
-            Type.Builtin("Unit")
-        } else if(elseBlock.type != ifBlock.type) {
-            Type.Builtin("Unit") // TODO figure out what to do here
-        } else ifBlock.type
+        val type = when {
+            elseBlock == null -> Type.Builtin("Unit")
+            elseBlock.type != ifBlock.type -> Type.Builtin("Unit") // TODO figure out what to do here
+            else -> ifBlock.type
+        }
         Expr.If(cond, ifBlock, elseBlock, type)
     }
-    is UntypedExpr.MemberAccess -> TODO()
-    is UntypedExpr.PrefixOp -> TODO()
-    is UntypedExpr.Assignment -> TODO()
+    // NEED TO DO
+    is UntypedExpr.MemberAccess -> {
+        val left = compileExpr(expr.expr, scope)
+
+        val structType = if(expr.isArrow) {
+            if(left.type !is Type.Pointer){
+                error("Can't use -> when type is not a pointer. Got type ${left.type.str()} instead")
+            }
+            left.type.inner
+        } else {
+            left.type
+        }
+        if(structType !is Type.Struct) {
+            error("can't do ${if(expr.isArrow) "->" else "."}${expr.memberName} on non-struct expression. Got value of type " + left.type.str())
+        }
+        val fields = fieldsFor(this.structs[structType.name] ?: error("ICE, can't find struct with name"), structType)
+        val (_, fieldType) = fields
+            .firstOrNull { (name, _) -> name == expr.memberName }
+            ?: error("Can't find member ${expr.memberName} on struct of type ${structType.str()}")
+        // TODO make sure that the struct is writable, or smth
+
+        Expr.MemberAccess(left, expr.memberName, expr.isArrow, fieldType)
+    }
+    is UntypedExpr.Assignment -> {
+        val left = compileExpr(expr.left, scope)
+        val right = compileExpr(expr.right, scope)
+        if(!left.isLValue()) {
+            error("Can't assign value to rvalue")
+        }
+        if(left.type != right.type) {
+            error("Can't assign value of type ${right.type.str()} to lvalue of type ${left.type.str()}")
+        }
+        Expr.Assignment(left, right)
+    }
+    is UntypedExpr.PrefixOp -> {
+        val right = compileExpr(expr.right, scope)
+        when (expr.op) {
+            "*" -> {
+                if(right.type !is Type.Pointer) {
+                    error("Can't dereferencee expression of type ${right.type.str()}, must be pointer type")
+                }
+                Expr.Deref(right, right.type.inner)
+            }
+            "&" -> {
+                if(!right.isLValue()) {
+                    error("Can't dereference rvalue expression $right")
+                }
+                Expr.Ref(right)
+            }
+            else -> TODO("not sure what that prefix operator is")
+        }
+    }
 
 
     // put off for later probably
