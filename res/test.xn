@@ -40,7 +40,7 @@ func foo() {
 
 
 func[T] realloc(T* ptr, Int size) T*  {
-    return ptr // who cares honetly
+    return ptr // who cares honestly
 }
 
 func[T] newList() List[T] {
