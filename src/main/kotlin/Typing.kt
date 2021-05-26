@@ -146,19 +146,15 @@ fun generateGenericStructs(structs: List<UntypedStruct>): List<GenericStruct> {
 }
 
 
-val builtinNames = setOf("Int", "Char") //TODO make better
-
 // this goes over and types all the types
 // this does NOT replace any generics or anything
 // just sorts it into the right categories and checks the arities on struct calls
 // checks to make sure the types actually exist, etc
 fun initialTypePass(type: UnrealizedType, structs: List<UntypedStruct>, genericNames: Set<TypeIdentifier>): Type = when(type){
     is UnrealizedType.NamedType -> {
+        val builtinLookup = Type.Builtin.allMap[type.name]
         when {
-            type.name in builtinNames -> {
-                if (type.genericTypes.isNotEmpty()) error("Not expecting generic types on ${type.name}")
-                Type.Builtin(type.name)
-            }
+            builtinLookup != null -> builtinLookup
             genericNames.contains(type.name) -> {
                 if (type.genericTypes.isNotEmpty()) error("Not expecting generic types on generic type ${type.name}")
                 Type.Generic(type.name)

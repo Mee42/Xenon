@@ -40,6 +40,18 @@ private val variableIdentifierAllowedFirstChars = lowerLetters
 private val typeIdentifierAllowedFirstChars = upperLetters
 private val identifierAllowedChars = lowerLetters + upperLetters + numbers + setOf('_')
 private val numberChars = numbers + lowerLetters + setOf('.')
+private val numberCharsInner = numberChars + "iulb".toSet()
+// allowed postfixes:
+/*
+17ui
+17ub
+17ul
+17i
+17b
+17l
+
+ */
+
 
 // returns the leftover string, and $previous plus the tokens that were lexed out.
 // if the returned string is present, it will start with a closing bracket.
@@ -84,7 +96,7 @@ fun lexOne(str: String): Pair<String, Token> {
             str.substring(id.length) to Token.TypeIdentifier(id)
         }
         str[0] in numbers -> {
-            val number = str.takeWhile { it in numberChars }
+            val number = str.takeWhile { it in numberCharsInner }
             str.substring(number.length) to Token.NumericalLiteral(number)
         }
         str[0] == '\'' -> {

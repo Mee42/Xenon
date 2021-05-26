@@ -6,8 +6,8 @@ Immediate TODOs:
 - [x] Lexer
 - [x] Grammar 
 - [x] Parser
-- [x] Semantic analysis, type checking (in process)
-- [ ] Proper integer types
+- [x] Semantic analysis, type checking
+- [ ] Proper integer types (in progress)
 - [ ] Loop support
 - [ ] Arrays
 - [ ] [TVM](https://github.com/adrian154/tvm) backend

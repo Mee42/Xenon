@@ -1,75 +1,78 @@
-func [T, R] cast(T t) R {}// intrinsic
+//func [T, R] cast(T t) R {}// intrinsic
+//
+//struct[T] List {
+//    Int size;
+//    Int allocated;
+//    T* data;
+//}
+//struct[A, B] Pair {
+//    A a;
+//    B b;
+//}
+//struct[T] Foo {
+//    List[Pair[T, T]] list;
+//}
+//
+//func[T] malloc(Int count) T* {
+//    return cast::[Int, T*](sizeof::[T]() * count);
+//    // just returns the number of bytes in the size thing
+//    // for testing
+//}
+//func print(Char* x) {}
+//
+//func foo() {
+//   val cond = 7;
+//   val Int x = if(cond) {
+//        print("true!");
+//        return 7;
+//   } else {
+//        print("not true");
+//        return 8;
+//   };
+//
+//   val Pair[Int*, Char*] pair = struct Pair[Int*, Char*] {
+//        .a = malloc::[Int](3),
+//        .b = malloc::[Char](7)
+//   };
+//   *((&pair)->a) = 7;
+//   *pair.a = 7;
+//}
+//
+//
+//func[T] realloc(T* ptr, Int size) T*  {
+//    return ptr // who cares honestly
+//}
+//
+//func[T] newList() List[T] {
+//    return struct List[T] { // the type 'List[T]' is optional when can be inferred
+//        .size      = 0,
+//        .allocated = 10,
+//        .data      = malloc::[T](10),
+//    };
+//}
+//
+//func[T] (List[T]* self).add(T element) {
+//    if(self->size == self->allocated) {
+//        self->allocated = self->allocated * 2; // TODO add a =* operator
+//        self->data = realloc::[T](self->data, self->allocated);
+//    };
+//    // TODO add a ++ operator
+//    self->size = self->size + 1;
+//    self->data[self->size] = element;
+//}
+//
+//func main() UInt {
+//   val List[Int] numbers = newList::[Int]();
+//   add::[Int](&numbers, 7);
+//   add::[Int](&numbers, 8);
+//   (&numbers).add::[Int](3);
+//    return 0u;
+//}
+//
 
-struct[T] List {
-    Int size;
-    Int allocated;
-    T* data;
+
+
+
+func main() UInt {
+    return 0ul;
 }
-struct[A, B] Pair {
-    A a;
-    B b;
-}
-struct[T] Foo {
-    List[Pair[T, T]] list;
-}
-
-func[T] malloc(Int count) T* {
-    return cast::[Int, T*](sizeof::[T]() * count);
-    // just returns the number of bytes in the size thing
-    // for testing
-}
-func print(Char* x) {}
-
-func foo() {
-   val cond = 7;
-   val Int x = if(cond) {
-        print("true!");
-        return 7;
-   } else {
-        print("not true");
-        return 8;
-   };
-
-   val Pair[Int*, Char*] pair = struct Pair[Int*, Char*] {
-        .a = malloc::[Int](3),
-        .b = malloc::[Char](7)
-   };
-   *((&pair)->a) = 7;
-   *pair.a = 7;
-}
-
-
-func[T] realloc(T* ptr, Int size) T*  {
-    return ptr // who cares honestly
-}
-
-func[T] newList() List[T] {
-    return struct List[T] { // the type 'List[T]' is optional when can be inferred
-        .size      = 0,
-        .allocated = 10,
-        .data      = malloc::[T](10),
-    };
-}
-
-func[T] (List[T]* self).add(T element) {
-    if(self->size == self->allocated) {
-        self->allocated = self->allocated * 2; // TODO add a =* operator
-        self->data = realloc::[T](self->data, self->allocated);
-    };
-    // TODO add a ++ operator
-    self->size = self->size + 1;
-    self->data[self->size] = element;
-}
-
-func main() Int {
-   val List[Int] numbers = newList::[Int]();
-   add::[Int](&numbers, 7);
-   add::[Int](&numbers, 8);
-   (&numbers).add::[Int](3);
-    return 0;
-}
-
-
-
-
-

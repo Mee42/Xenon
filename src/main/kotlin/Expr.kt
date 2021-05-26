@@ -3,9 +3,9 @@ package dev.mee42
 sealed class Expr(val type: Type) {
     class Block(val label: LabelIdentifier, val contents: List<Expr>, t: Type): Expr(t)
     class Return(val expr: Expr): Expr(expr.type)
-    class NumericalLiteral(val i: Int): Expr(Type.Builtin("Int")) // TODO add more
-    class StringLiteral(val content: String): Expr(Type.Pointer(Type.Builtin("Char")))
-    class CharLiteral(val char: Char): Expr(Type.Builtin("Char"))
+    class NumericalLiteral(val i: Int, val t: Type.BuiltinInteger): Expr(t) // TODO add more
+    class StringLiteral(val content: String): Expr(Type.Pointer(Type.Builtin.CHAR))
+    class CharLiteral(val char: Char): Expr(Type.Builtin.CHAR)
     class BinaryOp(val left: Expr, val right: Expr, val op: Operator, t: Type): Expr(t)
     class FunctionCall(val header: FunctionHeader, val arguments: List<Expr>): Expr(header.returnType)
     class VariableDefinition(val variableName: VariableIdentifier, val value: Expr, val isConst: Boolean, t: Type): Expr(t)
@@ -116,46 +116,46 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
     is UntypedExpr.BinaryOp -> {
         val left = compileExpr(expr.left, scope)
         val right = compileExpr(expr.right, scope)
+        // MARK completely broken
         when (expr.op) {
             // TODO this is going to need some work
-            "+" -> {
-                val leftType = left.type
-                val rightType = right.type
-                val isValid =
-                    (leftType == Type.Builtin("Int") && rightType == Type.Builtin("Int")) ||
-                    (leftType == Type.Builtin("Int") && rightType is Type.Pointer) ||
-                    (leftType is Type.Pointer && rightType == Type.Builtin("Int"))
-                if(!isValid) error("illegal to add $leftType and $rightType together")
-                val type = when {
-                    leftType is Type.Pointer -> leftType
-                    rightType is Type.Pointer -> rightType
-                    else -> Type.Builtin("Int")
-                }
-                Expr.BinaryOp(left, right, Operator.ADD, type)
-            }
-            "-", "*", "/" -> {
-                val verb = when(expr.op) {"-" -> "subtract"; "*" -> "multiply"; "/" -> "divide"; else -> error("ICE")}
-                if (left.type != right.type) error("Can't $verb values of types ${left.type} and ${right.type} together")
-                if (left.type != Type.Builtin("Int")) error("Attempting to $verb type ${left.type}, only supported type is Int")
-                val operator = Operator.values().first { it.op == expr.op }
-                Expr.BinaryOp(left, right, operator, Type.Builtin("Int"))
-            }
+//            "+" -> {
+//                val leftType = left.type
+//                val rightType = right.type
+//                val isValid =
+//                    (leftType == Type.Builtin("Int") && rightType == Type.Builtin("Int")) ||
+//                    (leftType == Type.Builtin("Int") && rightType is Type.Pointer) ||
+//                    (leftType is Type.Pointer && rightType == Type.Builtin("Int"))
+//                if(!isValid) error("illegal to add $leftType and $rightType together")
+//                val type = when {
+//                    leftType is Type.Pointer -> leftType
+//                    rightType is Type.Pointer -> rightType
+//                    else -> Type.Builtin("Int")
+//                }
+//                Expr.BinaryOp(left, right, Operator.ADD, type)
+//            }
+//            "-", "*", "/" -> {
+//                val verb = when(expr.op) {"-" -> "subtract"; "*" -> "multiply"; "/" -> "divide"; else -> error("ICE")}
+//                if (left.type != right.type) error("Can't $verb values of types ${left.type} and ${right.type} together")
+//                if (left.type != Type.Builtin("Int")) error("Attempting to $verb type ${left.type}, only supported type is Int")
+//                val operator = Operator.values().first { it.op == expr.op }
+//                Expr.BinaryOp(left, right, operator, Type.Builtin("Int"))
+//            }
             "==", "!=" -> {
-               Expr.BinaryOp(left, right, if(expr.op == "==") Operator.EQUALS else Operator.NOT_EQUALS, Type.Builtin("Int"))
+               Expr.BinaryOp(left, right, if(expr.op == "==") Operator.EQUALS else Operator.NOT_EQUALS, Type.Builtin.BOOL)
             }
             else -> error("unknown binary operator " + expr.op)
         }
     }
     is UntypedExpr.CharLiteral -> Expr.CharLiteral(expr.char)
     is UntypedExpr.FunctionCall -> {
-        // TODO add bidirectional type assumption so generics don't always need to be specified
 
         // INTRINSIC:
         if(expr.functionName == "sizeof") {
             if(expr.generics.size != 1) error("sizeof function needs to take in one generic argument, not " + expr.generics.size)
             val type = typeMapper(expr.generics[0])
             val size = getSizeForType(type)
-            Expr.NumericalLiteral(size)
+            Expr.NumericalLiteral(size, Type.Builtin.UINT) // MARK consider: the size of objects is always UInt?
         } else {
 
             // grab the function we need
@@ -174,7 +174,21 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
             Expr.FunctionCall(specializedFunction, arguments)
         }
     }
-    is UntypedExpr.NumericalLiteral -> Expr.NumericalLiteral(expr.number.toInt())
+    is UntypedExpr.NumericalLiteral -> {
+        // postfix
+        val n = expr.number
+        val (dropCount, type)= when { // only extract type info
+            n.endsWith("ui") -> 2 to Type.Builtin.UINT
+            n.endsWith("ub") -> 2 to Type.Builtin.UBYTE
+            n.endsWith("ul") -> 2 to Type.Builtin.ULONG
+            n.endsWith("u") -> 1 to Type.Builtin.UINT
+            n.endsWith("i") -> 1 to Type.Builtin.INT
+            n.endsWith("l") -> 1 to Type.Builtin.LONG
+            n.endsWith("b") -> 1 to Type.Builtin.BYTE
+            else -> 0 to Type.Builtin.INT
+        }
+        Expr.NumericalLiteral(n.dropLast(dropCount).toInt(), type)
+    } // MARK needs to be fixed
     is UntypedExpr.Return -> Expr.Return(compileExpr(expr.expr, scope))
     is UntypedExpr.StringLiteral -> Expr.StringLiteral(expr.content)
     is UntypedExpr.StructDefinition -> {
@@ -231,10 +245,10 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
         val cond = compileExpr(expr.cond, scope)
         val ifBlock = compileExpr(expr.ifBlock, scope)
         val elseBlock = if(expr.elseBlock != null) compileExpr(expr.elseBlock, scope) else null
-        if(cond.type != Type.Builtin("Int")) error("Condition must return value of type Int, not ${cond.type.str()}")
+        if(cond.type != Type.Builtin.BOOL) error("Condition must return value of type Bool, not ${cond.type.str()}")
         val type = when {
-            elseBlock == null -> Type.Builtin("Unit")
-            elseBlock.type != ifBlock.type -> Type.Builtin("Unit") // TODO figure out what to do here
+            elseBlock == null -> Type.Unit
+            elseBlock.type != ifBlock.type -> Type.Unit// TODO figure out what to do here
             else -> ifBlock.type
         }
         Expr.If(cond, ifBlock, elseBlock, type)
