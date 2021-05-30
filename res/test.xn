@@ -53,10 +53,9 @@ func[T] newList() List[T] {
 
 func[T] (List[T]* self).add(T element) {
     if(self->size == self->allocated) {
-        self->allocated = self->allocated * 2; // TODO add a =* operator
+        self->allocated = self->allocated * 2;
         self->data = realloc::[T](self->data, self->allocated);
     };
-    // TODO add a ++ operator
     self->size = self->size + 1;
     self->data[self->size] = element;
 }
