@@ -111,41 +111,79 @@ private data class Scope(val variables: MutableList<Variable>, val parent: Scope
 }
 data class Variable(val name: VariableIdentifier, val type: Type, val isConst: Boolean)
 
+fun integralArithmetic(verb: String, leftType: Type.BuiltinInteger, rightType: Type.BuiltinInteger): Type.BuiltinInteger {
+    // helper function for returnType
+
+    if(leftType.signed != rightType.signed) error("Can't $verb types $leftType and $rightType as one is unsigned")
+    // okay then we'll just cast it up to the highest type
+    return if(leftType.size > rightType.size) leftType else rightType // re
+}
+// throws an error on
+fun returnType(op: Operator, leftType: Type, rightType: Type): Type = when(op){
+    Operator.ADD ->  {
+        if(leftType is Type.BuiltinInteger && rightType is Type.BuiltinInteger) {
+            // okay, both integers
+            integralArithmetic("add", leftType, rightType)
+        } else if(leftType is Type.Pointer && rightType is Type.Pointer) {
+            error("Can't add two pointer $leftType and $rightType")
+        } else if(leftType is Type.Pointer || rightType is Type.Pointer) {
+            val ptrType = if(leftType is Type.Pointer) leftType else (rightType as Type.Pointer)
+            val intType = if(leftType is Type.Pointer) rightType else leftType
+            if(intType !is Type.BuiltinInteger) error("Can't support adding a pointer $ptrType to a non-integer type $intType")
+            if(intType.size > 2) error("Can't add a pointer to type $intType as $intType is bigger than a pointer") // todo make better
+            ptrType
+        } else {
+            error("no code has been written that handles the $leftType + $rightType case")
+        }
+    }
+    Operator.SUB -> {
+        if(leftType is Type.BuiltinInteger && rightType is Type.BuiltinInteger) {
+            integralArithmetic("subtract", leftType, rightType)
+        } else if(leftType is Type.Pointer && rightType is Type.Pointer) {
+            // only valid if both inner types are valid, and the return type is Int
+            if(leftType.inner != rightType.inner) error("Can't subtract pointer types $leftType and $rightType")
+            Type.Builtin.INT
+        } else if(leftType is Type.Pointer || rightType is Type.Pointer) {
+            val ptrType = if(leftType is Type.Pointer) leftType else (rightType as Type.Pointer)
+            val intType = if(leftType is Type.Pointer) rightType else leftType
+            if(intType !is Type.BuiltinInteger) error("Can't support subtracting a pointer $ptrType to a non-integer type $intType")
+            if(intType.size > 2) error("Can't subtract a pointer to type $intType as $intType is bigger than a pointer") // todo make better
+            ptrType
+        } else {
+            error("no code has been written that handles the $leftType - $rightType case")
+        }
+    }
+    Operator.TIMES -> {
+        if(leftType is Type.BuiltinInteger && rightType is Type.BuiltinInteger) {
+            integralArithmetic("multiply", leftType, rightType)
+        } else {
+            error("no code has been written that handles the $leftType * $rightType case")
+        }
+    }
+    Operator.DIVIDE -> {
+        if(leftType is Type.BuiltinInteger && rightType is Type.BuiltinInteger) {
+            integralArithmetic("divide", leftType, rightType)
+        } else {
+            error("no code has been written that handles the $leftType * $rightType case")
+        }
+    }
+    Operator.EQUALS, Operator.NOT_EQUALS -> {
+        if(leftType != rightType) {
+            error("Can't compare types $leftType and $rightType for equality")
+        } else {
+            Type.Builtin.BOOL
+        }
+    }
+}
+
 // will mutate scope if a variable is defined
 private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
     is UntypedExpr.BinaryOp -> {
         val left = compileExpr(expr.left, scope)
         val right = compileExpr(expr.right, scope)
-        // MARK completely broken
-        when (expr.op) {
-            // TODO this is going to need some work
-//            "+" -> {
-//                val leftType = left.type
-//                val rightType = right.type
-//                val isValid =
-//                    (leftType == Type.Builtin("Int") && rightType == Type.Builtin("Int")) ||
-//                    (leftType == Type.Builtin("Int") && rightType is Type.Pointer) ||
-//                    (leftType is Type.Pointer && rightType == Type.Builtin("Int"))
-//                if(!isValid) error("illegal to add $leftType and $rightType together")
-//                val type = when {
-//                    leftType is Type.Pointer -> leftType
-//                    rightType is Type.Pointer -> rightType
-//                    else -> Type.Builtin("Int")
-//                }
-//                Expr.BinaryOp(left, right, Operator.ADD, type)
-//            }
-//            "-", "*", "/" -> {
-//                val verb = when(expr.op) {"-" -> "subtract"; "*" -> "multiply"; "/" -> "divide"; else -> error("ICE")}
-//                if (left.type != right.type) error("Can't $verb values of types ${left.type} and ${right.type} together")
-//                if (left.type != Type.Builtin("Int")) error("Attempting to $verb type ${left.type}, only supported type is Int")
-//                val operator = Operator.values().first { it.op == expr.op }
-//                Expr.BinaryOp(left, right, operator, Type.Builtin("Int"))
-//            }
-            "==", "!=" -> {
-               Expr.BinaryOp(left, right, if(expr.op == "==") Operator.EQUALS else Operator.NOT_EQUALS, Type.Builtin.BOOL)
-            }
-            else -> error("unknown binary operator " + expr.op)
-        }
+        val op = Operator.values().firstOrNull { it.op == expr.op } ?: error("unknown operator ${expr.op}")
+        val retType = returnType(op, left.type, right.type)
+        Expr.BinaryOp(left, right, op, retType)
     }
     is UntypedExpr.CharLiteral -> Expr.CharLiteral(expr.char)
     is UntypedExpr.FunctionCall -> {
@@ -177,7 +215,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
     is UntypedExpr.NumericalLiteral -> {
         // postfix
         val n = expr.number
-        val (dropCount, type)= when { // only extract type info
+        val (dropCount, type) = when { // only extract type info
             n.endsWith("ui") -> 2 to Type.Builtin.UINT
             n.endsWith("ub") -> 2 to Type.Builtin.UBYTE
             n.endsWith("ul") -> 2 to Type.Builtin.ULONG
@@ -188,7 +226,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
             else -> 0 to Type.Builtin.INT
         }
         Expr.NumericalLiteral(n.dropLast(dropCount).toInt(), type)
-    } // MARK needs to be fixed
+    }
     is UntypedExpr.Return -> Expr.Return(compileExpr(expr.expr, scope))
     is UntypedExpr.StringLiteral -> Expr.StringLiteral(expr.content)
     is UntypedExpr.StructDefinition -> {
