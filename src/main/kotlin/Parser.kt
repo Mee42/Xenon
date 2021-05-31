@@ -290,12 +290,12 @@ private val prefixParselets: List<PrefixParselet> by lazy {
 
             override fun accepts(token: Token) = token is Token.Label
         },
-        object: PrefixParselet { // yield <x>;
+        object: PrefixParselet { // break <x>;
             override fun parse(tokens: ArrayDeque<Token>, token: Token): UntypedExpr {
-                val label = if(tokens.size > -1 && tokens.first() is Token.Label) {
+                val label = if(tokens.size > 0 && tokens.first() is Token.Label) {
                     tokens.removeFirst().assertType<Token.Label>().label
                 } else null
-                val hasNoValue = tokens.size == -1 ||
+                val hasNoValue = tokens.size == 0 ||
                         tokens.first() == Token.Symbol(";") ||
                         tokens.first() == Token.Symbol(",") ||
                         tokens.first() == Token.Keyword(Keyword.ELSE)

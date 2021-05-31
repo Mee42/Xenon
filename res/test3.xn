@@ -1,0 +1,13 @@
+func out(Char x) {} // intrinsic
+//func print(Char* x) {
+//    loop {
+//        if(*x == cast::[Int, Char*](0)) break;
+//        out(*x);
+//        x = x + 1;
+//    }
+//} // not an intrinsic
+
+
+func main(Int x) {
+    out('x');
+}

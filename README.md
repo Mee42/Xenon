@@ -9,7 +9,7 @@ Immediate TODOs:
 - [x] Semantic analysis, type checking
 - [x] Proper integer types
 - [x] Loop support 
-- [ ] [TVM](https://github.com/adrian154/tvm) backend
+- [ ] [TVM](https://github.com/adrian154/tvm) backend (in progress)
 
 
 

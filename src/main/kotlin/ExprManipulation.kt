@@ -134,7 +134,7 @@ fun <T> Expr.fold(f: (Expr) -> T?, mf: (T, T) -> T, d: T): T = f(this) ?: when(t
     is Expr.CharLiteral -> d
     is Expr.Continue -> d
     is Expr.Deref -> expr.fold(f, mf, d)
-    is Expr.FunctionCall -> arguments.map { it.fold(f, mf, d) }.foldNonEmpty(mf)
+    is Expr.FunctionCall -> arguments.map { it.fold(f, mf, d) }.takeUnless(List<T>::isEmpty)?.foldNonEmpty(mf) ?: d
     is Expr.If -> {
         val a = mf(cond.fold(f, mf, d), ifBlock.fold(f, mf, d))
         if(elseBlock == null) {
@@ -148,7 +148,11 @@ fun <T> Expr.fold(f: (Expr) -> T?, mf: (T, T) -> T, d: T): T = f(this) ?: when(t
     is Expr.NumericalLiteral -> d
     is Expr.Ref -> expr.fold(f, mf, d)
     is Expr.StringLiteral -> d
-    is Expr.StructDefinition -> this.members.map { it.second }.map { it.fold(f, mf, d) }.foldNonEmpty(mf)
+    is Expr.StructDefinition -> this.members
+        .map { it.second }
+        .map { it.fold(f, mf, d) }
+        .takeUnless(List<T>::isEmpty)
+        ?.foldNonEmpty(mf) ?: d
     is Expr.Unit -> d
     is Expr.VariableAccess -> d
     is Expr.VariableDefinition -> value.fold(f, mf, d)

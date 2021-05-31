@@ -5,7 +5,7 @@ import java.io.File
 
 
 fun main() {
-    val code = File("res/test2.xn").readText()
+    val code = File("res/test3.xn").readText()
 //    val code = "\"Hello, world\""  
     val tokens = lex(code)
     println("lexing...")
@@ -13,12 +13,17 @@ fun main() {
     println("\nparsing...")
     val ast = paintAllBreaks(parse(tokens))
     println("ast: $ast")
-    println(ast.str())
+//    println(ast.str())
     println("\ntyping...")
-    val typed = type(ast)
-    println(typed.structs.joinToString("\n") { it.str() })
-    println(typed.functions.joinToString("\n") { it.str() })
+    val typedAST = type(ast)
+    println(typedAST.structs.joinToString("\n") { it.str() })
+    println(typedAST.functions.joinToString("\n") { it.str() })
 
+
+    val tvmBackend = dev.mee42.tvm.TVMBackend()
+    println("\n ==== ${tvmBackend.name}...")
+    val endResult = tvmBackend.process(typedAST)
+    for(instr in endResult) println(instr)
 }
 
 
