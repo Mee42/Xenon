@@ -8,7 +8,7 @@ Immediate TODOs:
 - [x] Parser
 - [x] Semantic analysis, type checking
 - [x] Proper integer types
-- [ ] Loop support (in progress)
+- [x] Loop support 
 - [ ] [TVM](https://github.com/adrian154/tvm) backend
 
 
