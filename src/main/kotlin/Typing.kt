@@ -35,8 +35,9 @@ data class FunctionHeader(
 
 data class Function(val header: FunctionHeader, val body: Expr.Block)
 
+data class AST(val functions: List<Function>, val structs: List<GenericStruct>)
 
-fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
+fun type(untypedAST: UntypedAST): AST {
     // we start by turning every struct into a generic struct
     val structs = generateGenericStructs(untypedAST.structs)
 
@@ -47,7 +48,6 @@ fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
     val functions = untypedAST.functions.map { generateGenericFunction(it, untypedAST.structs) }
 
 
-
     // then we loop over each non-generic GenericFunction and call "specalize" on it, which adds it to the compile queue.
     val compileQueue = ArrayDeque<FunctionHeader>() // things we need to compile
     // for memoization
@@ -55,40 +55,45 @@ fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
 
     fun specialized(genericFunction: GenericFunction, genericTypes: List<Type>): FunctionHeader {
         // generate the header
-        if(genericFunction.generics.size != genericTypes.size) {
-            error("ICE: got $genericTypes but was trying to fill generic type list ${genericFunction.generics} and the sizes did not match, " +
-                    "while compiling specalization for function named ${genericFunction.name}")
+        if (genericFunction.generics.size != genericTypes.size) {
+            error(
+                "ICE: got $genericTypes but was trying to fill generic type list ${genericFunction.generics} and the sizes did not match, " +
+                        "while compiling specalization for function named ${genericFunction.name}"
+            )
         }
         val genericMap = genericFunction.generics.zip(genericTypes).toMap()
         // generate function header for the type
         val header = FunctionHeader(
             name = genericFunction.name,
-            arguments = genericFunction.arguments.map { (name, type) -> Argument(name, type.replaceGenerics(genericMap)) },
+            arguments = genericFunction.arguments.map { (name, type) ->
+                Argument(
+                    name,
+                    type.replaceGenerics(genericMap)
+                )
+            },
             returnType = genericFunction.returnType.replaceGenerics(genericMap),
             isExtension = genericFunction.isExtension,
             genericNames = genericFunction.generics,
             genericsInfo = genericMap
         )
-        if(!compiledFunctions.containsKey(header)) {
+        if (!compiledFunctions.containsKey(header)) {
             compileQueue.addLast(header) // if we haven't compiling it yet.
             // note: this isn't a catch-all, some duplicates will still be pushed to the list, so it's important to check for every single function
         }
         return header
     }
-    for(func in functions) {
+    for (func in functions) {
         if (func.generics.isEmpty()) {
             specialized(func, emptyList()) // just fill the compile queue with these functions
         }
     }
 
 
-
-
     // now, we flush out the compile queue
-    while(compileQueue.isNotEmpty()) {
+    while (compileQueue.isNotEmpty()) {
         val function = compileQueue.removeFirst()
-        if(compiledFunctions.containsKey(function)) continue // skip, already done!
-        if(function.name == "cast") continue // INTRINSIC: idk how else to implement this
+        if (compiledFunctions.containsKey(function)) continue // skip, already done!
+        if (function.name == "cast") continue // INTRINSIC: idk how else to implement this
         val body = try {
             compileFunctionBlock(
                 block = functions.first { it.name == function.name }.body, // just look up the body
@@ -98,21 +103,24 @@ fun type(untypedAST: UntypedAST): Pair<List<Function>, List<GenericStruct>> {
                 genericNames = function.genericNames.toSet(),
                 removeGenerics = { it.replaceGenerics(function.genericsInfo) },
                 specializeFunction = ::specialized,
-                arguments = function.arguments
+                arguments = function.arguments,
+                functionIdentifier = function.name
             )
-        }catch(e: IllegalStateException) {
+        } catch (e: IllegalStateException) {
             throw IllegalStateException("while compiling function ${function.name}", e)
         }
         val compiledFunction = Function(
             header = function,
             body = body
         )
-        if(compiledFunction.body.type != function.returnType) {
+        if (compiledFunction.body.type != function.returnType) {
             error("Function ${function.name} returns ${function.returnType} but the body return type is ${compiledFunction.body.type}")
         }
         compiledFunctions[function] = compiledFunction
     }
-    return compiledFunctions.values.toList() to structs
+
+    compiledFunctions.map { (_, function) -> loopValidate(function.body, emptyMap()) }
+    return AST(compiledFunctions.values.toList(), structs)
 }
 
 

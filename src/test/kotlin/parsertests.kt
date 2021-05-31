@@ -6,7 +6,7 @@ import java.io.File
 
 fun testInOut(input: String, output: String) {
     fun String.fix() = this.trimIndent().split("\n").joinToString("\n") { it.trimEnd() }
-    assertEquals(output.fix(), paintAllYields(parse(lex(input))).str().fix())
+    assertEquals(output.fix(), paintAllBreaks(parse(lex(input))).str().fix())
 }
 
 class ParserTests: StringSpec({

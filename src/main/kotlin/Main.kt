@@ -5,19 +5,20 @@ import java.io.File
 
 
 fun main() {
-    val code = File("res/test.xn").readText()
+    val code = File("res/test2.xn").readText()
 //    val code = "\"Hello, world\""  
     val tokens = lex(code)
     println("lexing...")
     println(tokens)
     println("\nparsing...")
-    val ast = paintAllYields(parse(tokens))
+    val ast = paintAllBreaks(parse(tokens))
     println("ast: $ast")
     println(ast.str())
     println("\ntyping...")
-    val (functions, structs) = type(ast)
-    println(structs.joinToString("\n") { it.str() })
-    println(functions.joinToString("\n") { it.str() })
+    val typed = type(ast)
+    println(typed.structs.joinToString("\n") { it.str() })
+    println(typed.functions.joinToString("\n") { it.str() })
+
 }
 
 
@@ -83,7 +84,7 @@ fun UntypedExpr.str(indent: String, needsToIndent: Boolean = false, needParens: 
         is UntypedExpr.CharLiteral -> "$i'$char'"
         is UntypedExpr.Loop -> i + "loop" + block.str(indent)
         is UntypedExpr.Continue -> i + "continue" + clean(label)
-        is UntypedExpr.Yield -> i + "yield" + clean(label) + " " +  (value?.str(indent) ?: "")
+        is UntypedExpr.Break -> i + "break" + clean(label) + " " +  (value?.str(indent) ?: "")
         is UntypedExpr.MemberAccess -> i + paren(expr.str(indent,needParens = true) + (if(isArrow) "->" else ".") + memberName)
         is UntypedExpr.StructDefinition -> i + "struct " + (type?.str()?.plus(" ") ?: "") + "{\n" + this.members.joinToString(",\n") {  (name, expr) ->
             "$indent    .$name = " + expr.str("$indent    ")
@@ -102,7 +103,6 @@ fun Expr.str(indent: String, needsToIndent: Boolean = false, needParens: Boolean
                 (if(this.header.genericNames.isEmpty()) "" else "::" + this.header.genericNames.map { header.genericsInfo[it]!!.str() }.joinToString(", ", "[", "]")) +
                 "(" + arguments.joinToString(", ") { it.str(indent) } + ")"
         is Expr.NumericalLiteral -> i + this.i
-        is Expr.Return -> i + "return " + expr.str(indent)
         is Expr.StringLiteral -> i + '"' + content + '"'
         is Expr.CharLiteral -> "$i'$char'"
         is Expr.VariableAccess -> variableName
@@ -111,10 +111,14 @@ fun Expr.str(indent: String, needsToIndent: Boolean = false, needParens: Boolean
             "$indent    .$name = " + expr.str("$indent    ")
         } + "\n$indent}"
         is Expr.If -> i + "if(" + cond.str(indent) + ") " + ifBlock.str(indent) + (elseBlock?.str(indent)?.let {" else $it"} ?: "")
-        is Expr.Deref -> "*" + expr.str(indent)
-        is Expr.MemberAccess -> this.expr.str(indent) + (if(isArrow) "->" else ".") + this.memberName
-        is Expr.Ref -> "&" + expr.str(indent)
-        is Expr.Assignment -> left.str(indent) + " = " + right.str(indent)
+        is Expr.Deref -> i + "*" + expr.str(indent)
+        is Expr.MemberAccess -> i + this.expr.str(indent) + (if(isArrow) "->" else ".") + this.memberName
+        is Expr.Ref -> i + "&" + expr.str(indent)
+        is Expr.Assignment -> i + left.str(indent) + " = " + right.str(indent)
+        is Expr.Break -> i + "break" + clean(label) + " "+ value.str(indent)
+        is Expr.Continue -> i + "continue" + clean(label)
+        is Expr.Loop -> i + "loop " + block.str(indent)
+        is Expr.Unit -> i + "Unit"
     }
 }
 

@@ -1,0 +1,27 @@
+
+func main() Int {
+    val x = @bar {
+        {
+            break@bar 7;
+        };
+        break@bar 7;
+    };
+    val Int y = loop @foo {
+        break 0 + 3;
+    };
+    {
+    {};
+    };
+    { return @foo { { break@foo 3; } }; };
+    { break@main @foo { { break@foo 3; } }; }; // return is just an alias to break@main
+    { break "Hi" };
+
+
+    @test {};
+    loop { continue };
+    {
+        loop {
+            break 0;
+        }
+    };
+}

@@ -22,7 +22,7 @@ data class UntypedFunction(val name: VariableIdentifier,
 
 data class UntypedArgument(val name: VariableIdentifier, val type: UnrealizedType)
 
-sealed interface UntypedExpr {
+sealed interface UntypedExpr: TWAble {
     data class Block(val sub: List<UntypedExpr>, val label: LabelIdentifier?): UntypedExpr
     data class VariableDefinition(val variableName: VariableIdentifier, val value: UntypedExpr?, val type: UnrealizedType?, val isConst: Boolean): UntypedExpr
     data class Assignment(val left: UntypedExpr, val right: UntypedExpr): UntypedExpr
@@ -36,7 +36,7 @@ sealed interface UntypedExpr {
     data class CharLiteral(val char: Char): UntypedExpr
     data class If(val cond: UntypedExpr, val ifBlock: UntypedExpr, val elseBlock: UntypedExpr?): UntypedExpr
     data class Loop(val block: Block): UntypedExpr
-    data class Yield(val value: UntypedExpr?, val label: LabelIdentifier?): UntypedExpr
+    data class Break(val value: UntypedExpr?, val label: LabelIdentifier?): UntypedExpr
     data class Continue(val label: LabelIdentifier?): UntypedExpr
     data class MemberAccess(val expr: UntypedExpr, val memberName: VariableIdentifier, val isArrow: Boolean): UntypedExpr
     data class StructDefinition(val type: UnrealizedType?, val members: List<Pair<VariableIdentifier, UntypedExpr>>): UntypedExpr

@@ -74,14 +74,18 @@ private fun parseFunction(tokens: ArrayDeque<Token>, generics: List<String>): Un
         }
         val retTypeTokens = tokens.takeWhile { !(it is Token.Bracketed && it.char == BracketChar.CURLY_BRACKETS) }
         val retType = if(retTypeTokens.isNotEmpty()) parseType(retTypeTokens) else UnrealizedType.Unit
-        for(x in retTypeTokens) tokens.removeFirst() // TODO make better somehow idk
+        tokens.removeN(retTypeTokens.size)
         val body = tokens.removeFirst().assertType<Token.Bracketed>().assertCharIs(BracketChar.CURLY_BRACKETS)
             .run(::parseBlock)
         return UntypedFunction(identifier, retType, arguments, body, generics, extensionData != null)
     } catch(e: IllegalStateException) {
         throw IllegalStateException("while parsing function ${id ?: ""}", e)
     }
+}
 
+fun <T> ArrayDeque<T>.removeN(n: Int) {
+    // IMPROVE: somehow: removes n elements from the beginning
+    for(i in 0 until n) this.removeFirst()
 }
 
 private fun parseStruct(tokens: ArrayDeque<Token>, generics: List<String>): UntypedStruct {
@@ -198,7 +202,7 @@ private val prefixParselets: List<PrefixParselet> by lazy {
             override fun parse(tokens: ArrayDeque<Token>, token: Token): UntypedExpr {
                 val const = (token as Token.Keyword).keyword == Keyword.VAL
                 val type = tokens.takeWhile { it is Token.TypeIdentifier || it is Token.Symbol || (it is Token.Bracketed && it.char == BracketChar.SQUARE_BRACKETS) }
-                for(x in type) tokens.removeFirst()
+                tokens.removeN(type.size)
                 val name = (tokens.removeFirst() as? Token.VariableIdentifier)?.identifier
                     ?: error("was expecting a variable identifier, right before ${tokens.firstOrNull() ?: "the end of the file"}")
                 val expr = if(tokens.isEmpty() || tokens.firstOrNull() == Token.Symbol(";")) {
@@ -296,13 +300,13 @@ private val prefixParselets: List<PrefixParselet> by lazy {
                         tokens.first() == Token.Symbol(",") ||
                         tokens.first() == Token.Keyword(Keyword.ELSE)
                 val value = if(!hasNoValue) parseExprPratt(tokens, Precedence.BOTTOM) else null
-                return UntypedExpr.Yield(value, label)
+                return UntypedExpr.Break(value, label)
             }
-            override fun accepts(token: Token) = token == Token.Keyword(Keyword.YIELD)
+            override fun accepts(token: Token) = token == Token.Keyword(Keyword.BREAK)
         },
         object: PrefixParselet {
             override fun parse(tokens: ArrayDeque<Token>, token: Token): UntypedExpr {
-                val label = if(tokens.size > -1 && tokens.first() is Token.Label) {
+                val label = if(tokens.size > 1 && tokens.first() is Token.Label) {
                     tokens.removeFirst().assertType<Token.Label>().label
                 } else null
                 return UntypedExpr.Continue(label)
@@ -314,7 +318,7 @@ private val prefixParselets: List<PrefixParselet> by lazy {
                 // token will always be struct, no need to check
                 // take tokens up till the block
                 val typeTokens = tokens.takeWhile { !(it is Token.Bracketed && it.char == BracketChar.CURLY_BRACKETS) }
-                for(x in typeTokens) tokens.removeFirst()
+                tokens.removeN(typeTokens.size)
                 val type = typeTokens.takeUnless(List<Token>::isEmpty)?.let(::parseType)
                 val blockContents = tokens.removeFirst().assertType<Token.Bracketed>().assertCharIs(BracketChar.CURLY_BRACKETS).contents
                 val members = blockContents.splitBy { it == Token.Symbol(",") }
@@ -470,7 +474,6 @@ private fun parseExprPratt(tokens: ArrayDeque<Token>, precedence: Precedence): U
 }
 
 fun parseType(input: List<Token>): UnrealizedType {
-    // TODO expand on
     if(input.isEmpty()) error("Was expecting a type, but got nothing")
     val lastChar = input.last()
     return when {
@@ -483,7 +486,6 @@ fun parseType(input: List<Token>): UnrealizedType {
             UnrealizedType.NamedType(identifier, generics)
         }
         lastChar == Token.Symbol("*") -> {
-            // TODO add const pointer
             UnrealizedType.Pointer(parseType(input.dropLast(1)))
         }
         input.size == 1 -> {

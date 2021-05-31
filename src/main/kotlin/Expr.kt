@@ -2,8 +2,7 @@ package dev.mee42
 
 sealed class Expr(val type: Type) {
     class Block(val label: LabelIdentifier, val contents: List<Expr>, t: Type): Expr(t)
-    class Return(val expr: Expr): Expr(expr.type)
-    class NumericalLiteral(val i: Int, val t: Type.BuiltinInteger): Expr(t) // TODO add more
+    class NumericalLiteral(val i: Int, val t: Type.BuiltinInteger): Expr(t)
     class StringLiteral(val content: String): Expr(Type.Pointer(Type.Builtin.CHAR))
     class CharLiteral(val char: Char): Expr(Type.Builtin.CHAR)
     class BinaryOp(val left: Expr, val right: Expr, val op: Operator, t: Type): Expr(t)
@@ -20,6 +19,13 @@ sealed class Expr(val type: Type) {
     class Assignment(val left: Expr, val right: Expr): Expr(left.type) {
         init { if(left.type != right.type) error("ICE") }
     }
+
+    class Loop(val block: Expr.Block, t: Type): Expr(t)
+    class Break(val value: Expr,val label: LabelIdentifier): Expr(Type.Nothing)
+    class Continue(val label: LabelIdentifier): Expr(Type.Nothing)
+
+    class Unit: Expr(Type.Unit)// exists only to evaluate to unit. TODO: add syntax for this
+
 }
 
 fun Expr.isLValue(): Boolean = when(this) {
@@ -59,7 +65,8 @@ fun compileFunctionBlock(block: UntypedExpr.Block,
                          genericNames: Set<TypeIdentifier>, // in 'func[A, B, C] foo() {}' it's { A, B, C }
                          removeGenerics: (Type) -> Type,
                          specializeFunction: (GenericFunction, List<Type>) -> FunctionHeader,
-                         arguments: List<Argument>): Expr.Block {
+                         arguments: List<Argument>,
+                         functionIdentifier: VariableIdentifier): Expr.Block {
 
     fun typeMapper(type: UnrealizedType): Type {
         val pass1 = initialTypePass(type, untypedStructs, genericNames)
@@ -75,38 +82,55 @@ fun compileFunctionBlock(block: UntypedExpr.Block,
         specializeFunction = specializeFunction
     )
 
-    return ast.compileFunctionBlock(block, arguments)
+    return ast.compileFunctionBlock(functionIdentifier, block, arguments)
 }
 
-private fun Env.compileFunctionBlock(block: UntypedExpr.Block, arguments: List<Argument>): Expr.Block {
-    // TODO label and shit support
-    //     at the moment we'll just just... idk
-    // we'll make the return type of block the same as all the top-level return statements
-    // TODO make this support yield/return/shit
+private fun Env.compileFunctionBlock(functionIdentifier: VariableIdentifier, block: UntypedExpr.Block, arguments: List<Argument>): Expr.Block {
+
+    if(block.label == null) error("ICE: function block label is null, should not be")
+    val functionReturnLabel = if(block.label.endsWith("_")) {
+        functionIdentifier
+    } else error("ICE: no clue how you labeled your function block, but the syntax doesn't allow that yet") // TODO allow people to add labels to their function blocks
+
     val scope = Scope(
         variables = arguments.map { (name, type) -> Variable(name, type, true) }.toMutableList(),
-        null
+        parent = null,
+        functionReturnLabel = functionReturnLabel, // TODO look into refactoring this so we apply the function identifier when we paint the blocks
+        oldFunctionReturnLabel = block.label
     )
-    return compileBlock(block, scope)
-}
-private fun Env.compileBlock(block: UntypedExpr.Block, scope: Scope): Expr.Block {
-    // TODO same as above - label support
-    val newScope = Scope(mutableListOf(), scope)
-    val statements = block.sub.map { compileExpr(it, newScope) }
 
-    val retTypes = statements.filterIsInstance<Expr.Return>().map { it.type }
+    val newBlock = UntypedExpr.Block(block.sub, functionIdentifier) // 'return' is an alias for 'break@functionName'
+    return compileBlock(newBlock, scope)
+}
+
+private fun Env.compileBlock(block: UntypedExpr.Block, scope: Scope): Expr.Block {
+    val newScope = Scope(mutableListOf(), parent = scope, scope.functionReturnLabel, scope.oldFunctionReturnLabel)
+    val statements = block.sub.map { compileExpr(it, newScope) }
+    val newBlock = Expr.Block("SHOULD NEVER BE READ, IF THIS POPS UP ITS AN ICE", statements, Type.Unit)
+
+    val retTypes = newBlock.fold({ if(it is Expr.Break && it.label == block.label) setOf(it.value.type) else null}, {a, b -> a.union(b) }, emptySet())
     val retType = if (retTypes.isEmpty()) {
-        Type.Unit// TODO we know this is going to be like this, just ignore for now, do later
+        Type.Unit
     } else {
-        for(i in retTypes) if(i != retTypes[0]) error("conflicting return types, got both $i and ${retTypes[0]}")
-        retTypes[0]
+        for(i in retTypes) if(i != retTypes.first()) error("conflicting return types, got both $i and ${retTypes.first()}")
+        // they better all be the same
+        retTypes.first()
     }
 
-    return Expr.Block(block.label ?: error("no block identifier?"), statements, retType)
+    return Expr.Block(block.label ?: error("ICE: block has no label"), statements, retType)
+}
+
+private fun Env.compileLoop(loop: UntypedExpr.Loop, scope: Scope): Expr.Loop {
+    val block = compileBlock(loop.block, scope)
+    return Expr.Loop(block, block.type)
 }
 
 
-private data class Scope(val variables: MutableList<Variable>, val parent: Scope?) {
+private data class Scope(
+    val variables: MutableList<Variable>,
+    val parent: Scope?,
+    val functionReturnLabel: VariableIdentifier,
+    val oldFunctionReturnLabel: VariableIdentifier?) {
     fun lookupVariable(name: VariableIdentifier): Variable? = variables.firstOrNull { it.name == name } ?: parent?.lookupVariable(name)
 }
 data class Variable(val name: VariableIdentifier, val type: Type, val isConst: Boolean)
@@ -130,7 +154,7 @@ fun returnType(op: Operator, leftType: Type, rightType: Type): Type = when(op){
             val ptrType = if(leftType is Type.Pointer) leftType else (rightType as Type.Pointer)
             val intType = if(leftType is Type.Pointer) rightType else leftType
             if(intType !is Type.BuiltinInteger) error("Can't support adding a pointer $ptrType to a non-integer type $intType")
-            if(intType.size > 2) error("Can't add a pointer to type $intType as $intType is bigger than a pointer") // todo make better
+            if(intType.size > 2) error("Can't add a pointer to type $intType as $intType is bigger than a pointer")
             ptrType
         } else {
             error("no code has been written that handles the $leftType + $rightType case")
@@ -147,7 +171,7 @@ fun returnType(op: Operator, leftType: Type, rightType: Type): Type = when(op){
             val ptrType = if(leftType is Type.Pointer) leftType else (rightType as Type.Pointer)
             val intType = if(leftType is Type.Pointer) rightType else leftType
             if(intType !is Type.BuiltinInteger) error("Can't support subtracting a pointer $ptrType to a non-integer type $intType")
-            if(intType.size > 2) error("Can't subtract a pointer to type $intType as $intType is bigger than a pointer") // todo make better
+            if(intType.size > 2) error("Can't subtract a pointer to type $intType as $intType is bigger than a pointer")
             ptrType
         } else {
             error("no code has been written that handles the $leftType - $rightType case")
@@ -193,7 +217,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
             if(expr.generics.size != 1) error("sizeof function needs to take in one generic argument, not " + expr.generics.size)
             val type = typeMapper(expr.generics[0])
             val size = getSizeForType(type)
-            Expr.NumericalLiteral(size, Type.Builtin.UINT) // MARK consider: the size of objects is always UInt?
+            Expr.NumericalLiteral(size, Type.Builtin.UINT)
         } else {
 
             // grab the function we need
@@ -227,7 +251,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
         }
         Expr.NumericalLiteral(n.dropLast(dropCount).toInt(), type)
     }
-    is UntypedExpr.Return -> Expr.Return(compileExpr(expr.expr, scope))
+    is UntypedExpr.Return -> Expr.Break(compileExpr(expr.expr, scope), scope.functionReturnLabel)
     is UntypedExpr.StringLiteral -> Expr.StringLiteral(expr.content)
     is UntypedExpr.StructDefinition -> {
         val structType = this.typeMapper(expr.type ?: error("type assumption for struct definitions not supported yet"))
@@ -279,14 +303,13 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
     }
     is UntypedExpr.Block -> compileBlock(expr, scope)
     is UntypedExpr.If -> {
-        // TODO make Bool type
         val cond = compileExpr(expr.cond, scope)
         val ifBlock = compileExpr(expr.ifBlock, scope)
         val elseBlock = if(expr.elseBlock != null) compileExpr(expr.elseBlock, scope) else null
         if(cond.type != Type.Builtin.BOOL) error("Condition must return value of type Bool, not ${cond.type.str()}")
         val type = when {
             elseBlock == null -> Type.Unit
-            elseBlock.type != ifBlock.type -> Type.Unit// TODO figure out what to do here
+            elseBlock.type != ifBlock.type -> error("if block evaluates to type ${ifBlock.type}, but else block evaluates to type ${elseBlock.type}, which are not compatible")
             else -> ifBlock.type
         }
         Expr.If(cond, ifBlock, elseBlock, type)
@@ -330,7 +353,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
         when (expr.op) {
             "*" -> {
                 if(right.type !is Type.Pointer) {
-                    error("Can't dereferencee expression of type ${right.type.str()}, must be pointer type")
+                    error("Can't dereference expression of type ${right.type.str()}, must be pointer type")
                 }
                 Expr.Deref(right, right.type.inner)
             }
@@ -340,15 +363,21 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
                 }
                 Expr.Ref(right)
             }
-            else -> TODO("not sure what that prefix operator is")
+            else -> error("not sure what that prefix operator is") // TODO: Figure out what these need to be
         }
     }
 
 
-    // put off for later probably
-    is UntypedExpr.Loop -> TODO("not supported yet")
-    is UntypedExpr.Continue -> TODO("not supported yet")
-    is UntypedExpr.Yield -> TODO("not supported yet")
+    is UntypedExpr.Loop -> compileLoop(expr, scope)
+    is UntypedExpr.Continue -> Expr.Continue(expr.label ?: error("ICE: continue statement has no label"))
+    is UntypedExpr.Break -> {
+        val label = when (expr.label) {
+            null -> error("ICE: break statement has no label")
+            scope.oldFunctionReturnLabel -> scope.functionReturnLabel
+            else -> expr.label
+        }
+        Expr.Break(expr.value?.let { compileExpr(it, scope) } ?: Expr.Unit(), label)
+    }
 }
 
 // figures out all the fields in a struct

@@ -18,7 +18,7 @@ sealed interface Token {
 }
 enum class Keyword(val str: String) {
     RETURN("return"), FUNC("func"), STRUCT("struct"), VAL("val"), VAR("var"),
-    IF("if"), ELSE("else"), WHILE("while"), LOOP("loop"), YIELD("yield"), CONTINUE("continue")
+    IF("if"), ELSE("else"), WHILE("while"), LOOP("loop"), BREAK("break"), CONTINUE("continue")
 }
 
 enum class BracketChar(val open: Char, val close: Char) {
@@ -31,7 +31,6 @@ private val lowerLetters = ('a'..'z').toSet()
 private val upperLetters = lowerLetters.map(Char::uppercaseChar).toSet()
 private val numbers = ('0'..'9').toSet()
 
-// TODO Operator enum?? this is just for lexing tho we should be fine
 private val operators = listOf(".","->", "+", "-", "*", "/", "%", "<", ">", "++", ".", "->", "!", "&", "::",",", ";","==", "=")
 private val openBrackets = BracketChar.values().map { it.open }.toSet()
 private val closeBrackets = BracketChar.values().map { it.close }.toSet()
