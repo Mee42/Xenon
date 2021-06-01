@@ -9,3 +9,7 @@ sealed class Maybe<T> {
         is Nothing -> Nothing()
     }
 }
+sealed class Either<A, B> {
+    data class Left<A, B>(val a: A): Either<A, B>()
+    data class Right<A, B>(val b: B): Either<A, B>()
+}
