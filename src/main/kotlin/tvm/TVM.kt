@@ -225,13 +225,13 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         this += compileExpr(expr.left)
         if(expr.right.type is Type.Pointer) {
             // if this is true, then the next one is NOT true
-            this += Instr.Mul(Register.R0, Source.Immediate(sizeOfType(expr.right.type)), Register.R1, Register.R0) // store the top bits into r1, which is trashed
+            this += Instr.Mul(Register.R0, Source.Immediate(sizeOfType(expr.right.type.inner)), Register.R1, Register.R0) // store the top bits into r1, which is trashed
         }
         this += Instr.PushW(Register.R0)
         this += compileExpr(expr.right)
         if(expr.left.type is Type.Pointer) {
             // if this is true, then the above one is NOT true
-            this += Instr.Mul(Register.R0, Source.Immediate(sizeOfType(expr.left.type)), Register.R1, Register.R0) // store the top bits into r1, which is trashed
+            this += Instr.Mul(Register.R0, Source.Immediate(sizeOfType(expr.left.type.inner)), Register.R1, Register.R0) // store the top bits into r1, which is trashed
         }
         this += Instr.PopW(Register.R1)
         this += Instr.Add(Register.R0, Register.R1, Register.R0)
@@ -303,7 +303,7 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         for((i, char) in expr.content.withIndex()) {
             this += Instr.StoreB(addr = Source.Immediate(i + 0x5000), value = Source.Immediate(char.code))
         }
-        this += Instr.Mov(Source.Immediate(0x5000 + 1), Register.R0)
+        this += Instr.Mov(Source.Immediate(0x5000), Register.R0)
     }
     is Expr.If -> TODO()
 

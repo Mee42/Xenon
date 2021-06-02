@@ -17,7 +17,7 @@ func print(Char* x) {
     loop@loop {
         out(*x);
         x = x + 1;
-        //if(*x == cast::[Int, Char](0)) break@loop;
+        if(*x == cast::[Int, Char](0)) break@loop;
     }
 }
 func main(Int x) {
