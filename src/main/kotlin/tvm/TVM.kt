@@ -88,7 +88,7 @@ val outFunction = list<Instr> {
     this += Instr.PushW(Register.RD)
     this += Instr.Mov(Register.RE, Register.RD)
     // we'll use r0 for scrap
-    this += Instr.OLoadW(addr = Register.RD, i = Source.Immediate(4), reg = Register.R0)
+    this += Instr.OLoadB(addr = Register.RD, i = Source.Immediate(4), reg = Register.R0)
     this += Instr.Out(Register.R0)
     this += Instr.PopW(Register.RD)
     this += Instr.PopW(Register.RF)
@@ -105,10 +105,11 @@ private fun compileFunction(function: Function, ast: AST): List<Instr> {
     var location = 4 // start at location +4
     for(arg in function.header.arguments.reversed()) {
         // the first argument is pushed first, then the last argument is given a location first
-        location += sizeOfType(arg.type, ast) - 1
         variables[arg.name] = ValueLocation.MemoryOffset(location, Register.RD)
-        location++
+//        location++
+        location += sizeOfType(arg.type, ast)// - 1
     }
+    println(variables)
 
     val scope = Scope(variables = variables, ast, function.header.name)
     return list {
@@ -148,8 +149,8 @@ rF - instruction pointer
 // represents all places that values can exist in
 // TODO support values that are not 16 bits
 sealed interface ValueLocation {
-    class Register(val reg: dev.mee42.tvm.Register): ValueLocation // TODO16 bits
-    class MemoryOffset(val offset: Int,val reg: dev.mee42.tvm.Register): ValueLocation // this is a 16 bit value that's at offset from a register
+    data class Register(val reg: dev.mee42.tvm.Register): ValueLocation // TODO16 bits
+    data class MemoryOffset(val offset: Int,val reg: dev.mee42.tvm.Register): ValueLocation // this is a 16 bit value that's at offset from a register
 }
 
 private data class Scope(
@@ -248,6 +249,7 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         listOf(Instr.Mov(Source.Immediate(expr.i), Register.R0))
     }
     is Expr.Deref -> list {
+        this += compileExpr(expr.expr)
         when (val size = sizeOfType(expr.type)) {
             1 -> {
                 this += Instr.LoadB(Register.R0, Register.R0)
@@ -301,7 +303,7 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         for((i, char) in expr.content.withIndex()) {
             this += Instr.StoreB(addr = Source.Immediate(i + 0x5000), value = Source.Immediate(char.code))
         }
-        this += Instr.Mov(Source.Immediate(0x5000), Register.R0)
+        this += Instr.Mov(Source.Immediate(0x5000 + 1), Register.R0)
     }
     is Expr.If -> TODO()
 

@@ -1,5 +1,7 @@
 package dev.mee42
 
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.io.File
 
 
@@ -23,7 +25,12 @@ fun main() {
     val tvmBackend = dev.mee42.tvm.TVMBackend()
     println("\n ==== ${tvmBackend.name}...")
     val endResult = tvmBackend.process(typedAST)
-    for(instr in endResult) println(instr)
+
+    var s = ""
+    for(instr in endResult)  s += "" + instr + "\n"
+    println(s)
+    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(s), null)
+    Thread.sleep(10000)
 }
 
 
