@@ -62,6 +62,18 @@ sealed interface Instr {
     class Mul(val a: Source, val b: Source, val high: Register, val low: Register): InstrS("mul", a, b, high, low)
 
 
+    class IfEq(val a: Source, val b: Source): InstrS("ifeq", a, b)
+    class IfNEqq(val a: Source, val b: Source): InstrS("ifneq", a, b)
+    class IfG(val a: Source, val b: Source): InstrS("ifg", a, b)
+    class IfL(val a: Source, val b: Source): InstrS("ifl", a, b)
+    class IfGS(val a: Source, val b: Source): InstrS("ifgs", a, b)
+    class IfLS(val a: Source, val b: Source): InstrS("ifls", a, b)
+    class IfFlag: InstrS("iff")
+    class IfNFlag: InstrS("ifnf")
+
+    class SetFlag(): InstrS("sf")
+    class ClearFlag(): InstrS("cf")
+
 
 
 }
@@ -182,8 +194,9 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
     }
     is Expr.Loop -> list {
         this += Instr.Label(this@compileExpr.currentFunctionName + "_" + expr.block.label + "_start_")
-        this += compileExpr(expr.block)
+        this += expr.block.contents.map { compileExpr(it) }.flatten()
         this += Instr.Mov(Source.LabelValue(this@compileExpr.currentFunctionName + "_" + expr.block.label + "_start_"), Register.RF)
+        this += Instr.Label(this@compileExpr.currentFunctionName + "_" + expr.block.label + "_end_")
     }
     is Expr.CharLiteral -> listOf(Instr.Mov(Source.Immediate(expr.char.code), Register.R0))
     is Expr.FunctionCall -> {
@@ -216,25 +229,62 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         this += compileExpr(expr.value)
         this += Instr.Mov(Source.LabelValue(this@compileExpr.currentFunctionName + "_" + expr.label + "_end_"), Register.RF)
     }
-    is Expr.BinaryOp -> list {
-        if(expr.op != Operator.ADD) TODO("only addition supported rn")
-        if((expr.left.type !is Type.Builtin.INT && expr.left.type !is Type.Pointer) || (expr.right.type !is Type.Builtin.INT && expr.right.type !is Type.Pointer)) {
-            TODO("only Int arithmetic supported rn")
-        }
+    is Expr.BinaryOp -> when(expr.op) {
+        Operator.ADD -> list {
+            if ((expr.left.type !is Type.Builtin.INT && expr.left.type !is Type.Pointer) || (expr.right.type !is Type.Builtin.INT && expr.right.type !is Type.Pointer)) {
+                TODO("only Int arithmetic supported rn")
+            }
 
-        this += compileExpr(expr.left)
-        if(expr.right.type is Type.Pointer) {
-            // if this is true, then the next one is NOT true
-            this += Instr.Mul(Register.R0, Source.Immediate(sizeOfType(expr.right.type.inner)), Register.R1, Register.R0) // store the top bits into r1, which is trashed
+            this += compileExpr(expr.left)
+            if (expr.right.type is Type.Pointer) {
+                // if this is true, then the next one is NOT true
+                this += Instr.Mul(
+                    Register.R0,
+                    Source.Immediate(sizeOfType(expr.right.type.inner)),
+                    Register.R1,
+                    Register.R0
+                ) // store the top bits into r1, which is trashed
+            }
+            this += Instr.PushW(Register.R0)
+            this += compileExpr(expr.right)
+            if (expr.left.type is Type.Pointer) {
+                // if this is true, then the above one is NOT true
+                this += Instr.Mul(
+                    Register.R0,
+                    Source.Immediate(sizeOfType(expr.left.type.inner)),
+                    Register.R1,
+                    Register.R0
+                ) // store the top bits into r1, which is trashed
+            }
+            this += Instr.PopW(Register.R1)
+            this += Instr.Add(Register.R0, Register.R1, Register.R0)
         }
-        this += Instr.PushW(Register.R0)
-        this += compileExpr(expr.right)
-        if(expr.left.type is Type.Pointer) {
-            // if this is true, then the above one is NOT true
-            this += Instr.Mul(Register.R0, Source.Immediate(sizeOfType(expr.left.type.inner)), Register.R1, Register.R0) // store the top bits into r1, which is trashed
+        Operator.EQUALS -> list {
+            // 0 = false
+            // 1 = true
+            // this is BITWISE COMPARISON
+            if(sizeOfType(expr.left.type) <= 2) { // I think this works with both 8 and 16 bit values? not sure about 8 bit values
+                this += compileExpr(expr.left)
+                this += Instr.PushW(Register.R0) // push lh value
+                this += compileExpr(expr.right)
+                this += Instr.PopW(Register.R1) // pop lh value into b
+                if(false) { // TODO use once flags work
+                    this += Instr.ClearFlag() // clear the flag
+                    this += Instr.IfEq(Register.R0, Register.R1); this += Instr.SetFlag()
+                    // only run this line if they're equal, so the flag is set to the result
+
+                    this += Instr.Mov(Source.Immediate(0), Register.R0) // set r0 to zero
+                    this += Instr.IfFlag(); this += Instr.Mov(Source.Immediate(1), Register.R0)
+                    // set r0 to 1 if the flag is set
+                } else {
+                    // this is a version that doesn't use the flags
+                    this += Instr.Mov(Register.R0, Register.R2)
+                    this += Instr.Mov(Source.Immediate(0), Register.R0)
+                    this += Instr.IfEq(Register.R1, Register.R2); this += Instr.Mov(Source.Immediate(1), Register.R0)
+                }
+            }  else TODO("can't support types that big yet lol")
         }
-        this += Instr.PopW(Register.R1)
-        this += Instr.Add(Register.R0, Register.R1, Register.R0)
+        else -> TODO("operator ${expr.op} not supported yet")
     }
     is Expr.VariableAccess -> list {
         val pos = this@compileExpr.variables[expr.variableName] ?: error("ICE: Variable not in scope in backend ${expr.variableName}")
@@ -244,6 +294,7 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
             this += Instr.Mov(pos.reg, Register.R0)
         }
     }
+
     is Expr.NumericalLiteral -> {
         if(expr.t != Type.Builtin.INT) TODO("only supporting ints right now lol")
         listOf(Instr.Mov(Source.Immediate(expr.i), Register.R0))
@@ -298,25 +349,46 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         }
 
     }
+    /* 10-1*/
     is Expr.StringLiteral -> list {
-        // mark TODO This is terrible
+        // mark TODO This is terrible, fix strings
         for((i, char) in expr.content.withIndex()) {
             this += Instr.StoreB(addr = Source.Immediate(i + 0x5000), value = Source.Immediate(char.code))
         }
         this += Instr.Mov(Source.Immediate(0x5000), Register.R0)
     }
-    is Expr.If -> TODO()
+    is Expr.If -> list {
+        val elseLabel = genRandomString() + "_else_"
+        val endLabel = genRandomString() + "_end_"
+
+        this += compileExpr(expr.cond) // will evaluate to a boolean
+        // 0 = false
+        // not 0 = true
+        // if ra is 0, then we want to jump
+        this += Instr.IfEq(Source.Immediate(0), Register.R0)
+        this += Instr.Mov(Source.LabelValue(elseLabel), Register.RF) // jump to else: if it's false
+        this += compileExpr(expr.ifBlock) // otherwise evaluate the if block
+
+        this += Instr.Mov(Source.LabelValue(endLabel), Register.RF) // skip the else block
+
+        this += Instr.Label(elseLabel) // else:
+        this += expr.elseBlock?.let { compileExpr(it) } ?: emptyList() // if there's no else blokc, do nothing
+
+        this += Instr.Label(endLabel)
+    }
 
     // we'll get to these
     is Expr.Continue -> TODO()
     is Expr.MemberAccess -> TODO()
     is Expr.Ref -> TODO()
     is Expr.StructDefinition -> TODO()
-    is Expr.Unit -> TODO()
+    is Expr.Unit -> emptyList() // do nothing lol
     is Expr.VariableDefinition -> TODO()
 }
 
-
+fun genRandomString(): String {
+    return (0..10).joinToString("") { ('a'..'z').random().toString() }
+}
 
 
 private fun <T> list(block: MutableList<T>.() -> Unit): List<T> {

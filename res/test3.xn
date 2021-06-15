@@ -2,17 +2,10 @@ func out(Char x) {} // intrinsic
 func[A, B] cast(A a) B {} // intrinsic
 
 
-//func print(Char* x) {
-//    loop {
-//        if(*x == cast::[Int, Char*](0)) break;
-//        out(*x);
-//        x = x + 1;
-//    }
-//} // not an intrinsic
 
-//func digitToAscii(Int i) Char {
-//    return cast::[Int, Char](i + 48);
-//}
+func digitToAscii(Int i) Char {
+    return cast::[Int, Char](i + 48);
+}
 func print(Char* x) {
     loop@loop {
         out(*x);
@@ -23,3 +16,13 @@ func print(Char* x) {
 func main(Int x) {
     print("Hello, World!");
 }
+
+
+//func main(Int i) {
+//    i = 0;
+//    loop@LOOP {
+//        i = i + 1;
+//        out('a');
+//        if(i == 10) break@LOOP;
+//    }
+//}
