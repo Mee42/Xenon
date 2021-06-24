@@ -1,28 +1,43 @@
+
+
+
+//func print(Char* x) {
+//    loop {
+//        if(*x == cast::[Int, Char](0)) break;
+//        out(*x);
+//        x = x + 1;
+//    }
+//}
+
 func out(Char x) {} // intrinsic
 func[A, B] cast(A a) B {} // intrinsic
-
-
 
 func digitToAscii(Int i) Char {
     return cast::[Int, Char](i + 48);
 }
-func print(Char* x) {
-    loop@loop {
-        out(*x);
-        x = x + 1;
-        if(*x == cast::[Int, Char](0)) break@loop;
+
+func print(Int i) {
+    if (0 > i) {
+        out('-');
+        print(0 - i);
+        return;
+    };
+    if(i > 9) {
+        print(i / 10);
+    };
+    out(digitToAscii(i % 10));
+}
+
+func main() {
+    val Int i = 0-30;
+    i = i + 1;
+    loop {
+        if(i == 30) return;
+        print(i);
+        out(cast::[Int, Char](10));
+        i = i + 1;
     }
 }
-func main(Int x) {
-    print("Hello, World!");
-}
 
 
-//func main(Int i) {
-//    i = 0;
-//    loop@LOOP {
-//        i = i + 1;
-//        out('a');
-//        if(i == 10) break@LOOP;
-//    }
-//}
+

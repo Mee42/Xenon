@@ -99,7 +99,7 @@ private val untypedExprTWer = object: TWer<UntypedExpr> {
         is UntypedExpr.If -> UntypedExpr.If(f(t.cond), f(t.ifBlock), t.elseBlock?.let(f))
         is UntypedExpr.Loop -> UntypedExpr.Loop(f(t.block) as UntypedExpr.Block)
         is UntypedExpr.PrefixOp -> UntypedExpr.PrefixOp(f(t.right), t.op)
-        is UntypedExpr.Return -> UntypedExpr.Return(f(t.expr))
+        is UntypedExpr.Return -> UntypedExpr.Return(t.expr?.let(f))
         is UntypedExpr.VariableDefinition -> UntypedExpr.VariableDefinition(t.variableName, t.value?.let(f), t.type, t.isConst)
         is UntypedExpr.Break -> UntypedExpr.Break(t.value?.let(f), t.label)
         is UntypedExpr.VariableAccess,

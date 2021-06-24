@@ -6,96 +6,30 @@ import dev.mee42.Function
 class TVMBackend: Backend {
     override val name: String = "TVM"
 
-    override fun process(ast: AST): List<Instr> = list {
+    override fun process(ast: AST) = asm {
         // return String, probably
         this += Instr.Mov(Source.LabelValue("start_"), Register.RF)
-        for(function in ast.functions.sortedBy { if(it.header.name == "main") 1 else 0 }) {
-            this += compileFunction(function, ast)
+        val functionsASM = asm inner@ {
+            for (function in ast.functions.sortedBy { if (it.header.name == "main") 1 else 0 }) {
+                this@inner += compileFunction(function, ast)
+            }
         }
+        // we need to store all the strings
         this += Instr.Label("start_")
         this += Instr.Call(Source.LabelValue("main"))
+        this += Instr.Mov(Source.LabelValue("halt_"), Register.RF)
+        for((string, key) in stringLookup) {
+            this += Instr.Label("str_${key}_")
+            this += Instr.Bytes(string.encodeToByteArray().toList().map { it.toUByte() } + listOf(0x00u))
+        }
+        this += functionsASM
         this += Instr.Label("halt_")
         this += Instr.Mov(Source.LabelValue("halt_"), Register.RF)
     }
 
 }
-sealed interface Instr {
-    sealed class InstrS(private val name: String, private vararg val args: Any): Instr {
-        override fun toString() = "    $name " + args.joinToString(", ")
-    }
-    class Label(val name: String): Instr {
-        override fun toString() = "$name:"
-    }
-    object Nop: Instr {
-        override fun toString() = "    nop"
-    }
-    class Text(val s: String): Instr {
-        override fun toString(): String {
-            return s
-        }
-    }
-    class Mov(val source: Source, val register: Register): InstrS("mov", source, register)
-    class Out(val source: Source): InstrS("out", source)
-    class Call(val source: Source): InstrS("call", source)
-    class Add(val a: Source, val b: Source, val c: Register): InstrS("add", a, b, c)
 
-    class PopW(val register: Register): InstrS("popw", register)
-    class PushW(val source: Source): InstrS("pushw", source)
-    class PopB(val register: Register): InstrS("popb", register)
-    class PushB(val source: Source): InstrS("pushb", source)
-
-
-    class OStoreB(val value: Source, val addr: Source, val offset: Source): InstrS("ostoreb", value, addr, offset)
-    class OStoreW(val value: Source, val addr: Source, val offset: Source): InstrS("ostorew", value, addr, offset)
-    class OLoadB(val addr: Source, val i: Source, val reg: Register): InstrS("oloadb", addr, i, reg)
-    class OLoadW(val addr: Source, val i: Source, val reg: Register): InstrS("oloadw", addr, i, reg)
-
-
-
-
-    class StoreB(val value: Source, val addr: Source): InstrS("storeb", value, addr)
-    class StoreW(val value: Source, val addr: Source): InstrS("storew", value, addr)
-
-    class LoadB(val addr: Source, val reg: Register): InstrS("loadb", addr, addr)
-    class LoadW(val addr: Source, val reg: Register): InstrS("loadw", addr, addr)
-
-    class Mul(val a: Source, val b: Source, val high: Register, val low: Register): InstrS("mul", a, b, high, low)
-
-
-    class IfEq(val a: Source, val b: Source): InstrS("ifeq", a, b)
-    class IfNEqq(val a: Source, val b: Source): InstrS("ifneq", a, b)
-    class IfG(val a: Source, val b: Source): InstrS("ifg", a, b)
-    class IfL(val a: Source, val b: Source): InstrS("ifl", a, b)
-    class IfGS(val a: Source, val b: Source): InstrS("ifgs", a, b)
-    class IfLS(val a: Source, val b: Source): InstrS("ifls", a, b)
-    class IfFlag: InstrS("iff")
-    class IfNFlag: InstrS("ifnf")
-
-    class SetFlag(): InstrS("sf")
-    class ClearFlag(): InstrS("cf")
-
-
-
-}
-sealed interface Source {
-    class Immediate(val value: Int): Source {
-        override fun toString() = value.toString()
-    }
-    class LabelValue(val name: String): Source{
-        override fun toString() = name
-    }
-}
-
-
-enum class Register(val id: Char): Source {
-    R0('0'), R1('1'), R2('2'), R3('3'), R4('4'), R5('5'), R6('6'), R7('7'), R8('8'), R9('9'),
-    RA('a'), RB('b'), RC('c'), RD('d'), RE('e'), RF('f');
-
-    override fun toString() = "r$id"
-}
-
-
-val outFunction = list<Instr> {
+val outFunction = asm {
     this += Instr.Label("out")
     this += Instr.PushW(Register.RD)
     this += Instr.Mov(Register.RE, Register.RD)
@@ -106,34 +40,73 @@ val outFunction = list<Instr> {
     this += Instr.PopW(Register.RF)
 }
 
-// TODO define abi
-// at the moment, functions take in 1 value and it must be 16 bits
-private fun compileFunction(function: Function, ast: AST): List<Instr> {
+/*
+r0, r1                     - accumulator register. Used for return value
+r2, r3, r4, r5             - preserved by callee
+r6, r7, r8, r9, rA, rB, rC - trashed by callee
+rD - stack frame pointer
+rE - stack pointer
+rF - instruction pointer
+
+ */
+
+// TODO get a better abi
+
+private fun compileFunction(function: Function, ast: AST): Assembly {
     if(function.header.name == "out") return outFunction
     println("compiling ${function.header.name}...")
 
 
-    val variables = mutableMapOf<VariableIdentifier, ValueLocation>()
+    val arguments = mutableMapOf<VariableIdentifier, ValueLocation.MemoryOffset>()
     var location = 4 // start at location +4
     for(arg in function.header.arguments.reversed()) {
         // the first argument is pushed first, then the last argument is given a location first
-        variables[arg.name] = ValueLocation.MemoryOffset(location, Register.RD)
-//        location++
-        location += sizeOfType(arg.type, ast)// - 1
+        arguments[arg.name] = ValueLocation.MemoryOffset(location, Register.RD)
+        location += sizeOfType(arg.type, ast)
     }
-    println(variables)
+    val preScope = Scope(variables = arguments, ast, function.header.name, null, 0)
 
-    val scope = Scope(variables = variables, ast, function.header.name)
-    return list {
+    val variableSpaceSize = preScope.variableSizeSum(function.body)
+    println("variable space size: $variableSpaceSize")
+    val scope = Scope(variables = arguments, ast, function.header.name, null, variableSpaceSize)
+    return asm {
         this += Instr.Label(function.header.name)
         this += Instr.PushW(Register.RD)
         this += Instr.Mov(Register.RE, Register.RD)
+        this += Instr.Add(Register.RE, Source.Immediate(variableSpaceSize), Register.RE) // re = re + variableSpaceSize
         this += scope.compileExpr(function.body)
+        this += Instr.Sub(Register.RE, Source.Immediate(variableSpaceSize), Register.RE) // re = re - variableSpaceSize
         this += Instr.PopW(Register.RD)
         this += Instr.PopW(Register.RF)
     }
 }
+
+private fun Scope.variableSizeSum(expr: Expr.Block): Int {
+    // concatination of immutable sets
+    // also flatMap doesn't do set stuff, it should for performance
+    val blocks = expr.fold({ e: Expr ->
+        if (e == expr) null else when(e) {
+            is Expr.Block -> listOf(variableSizeSum(e))
+            else -> null
+        } }, { a, b -> a + b }, emptyList())
+
+    val variables = expr.fold({
+        if(it == expr) null else when(it) {
+            is Expr.VariableDefinition -> listOf(sizeOfType(it.type))
+            is Expr.Block -> emptyList()
+            else -> null
+        }
+    }, { a, b -> a + b }, listOf())
+
+    val variableSize =  variables.sum()
+    val blockSize = blocks.maxOrNull() ?: 0
+    return variableSize + blockSize
+}
+
+
+
 private fun Scope.sizeOfType(type: Type) = sizeOfType(type, this.ast)
+
 // returns the number of bytes
 private fun sizeOfType(type: Type, ast: AST): Int = when(type){
     is Type.Builtin -> type.size
@@ -147,16 +120,6 @@ private fun sizeOfType(type: Type, ast: AST): Int = when(type){
     Type.Unit -> 0
 }
 
-/*
-r0, r1 - accumulator register. Used for return value
-r2, r3, r4, r5 - first 4 arguments, can be trashed. Additional arguments spilled onto stack
-r6, r7, r8, r9 - registers for temporary data manipulation
-rA, rB, rC - reserved for future use
-rD - stack frame pointer
-rE - stack pointer
-rF - instruction pointer
-
- */
 
 // represents all places that values can exist in
 // TODO support values that are not 16 bits
@@ -166,45 +129,92 @@ sealed interface ValueLocation {
 }
 
 private data class Scope(
-    val variables: Map<VariableIdentifier, ValueLocation>,
+    private val variables: Map<VariableIdentifier, ValueLocation.MemoryOffset>,
     val ast: AST,
-    val currentFunctionName: VariableIdentifier
-    )
-/*
-func bar() {
-    @foo { break@foo 3 }
+    val currentFunctionName: VariableIdentifier,
+    val parent: Scope?,
+    val freeVariableSpace: Int,
+    ) {
+
+    fun lookupVariable(id: VariableIdentifier): ValueLocation.MemoryOffset? {
+        return variables[id] ?: parent?.lookupVariable(id)
+    }
 }
-->
-bar:
-  bar_foo_start_:
-    mov 3, r0
-    mov bar_foo_end_, rf
-  bar_foo_end_:
-    popw rf
 
- */
-
-private fun Scope.compileLValueExpr(expr: Expr): List<Instr> = when(expr) {
+private fun Scope.compileLValueExpr(expr: Expr): Assembly = when (expr) {
+    is Expr.Deref -> {
+        // *x
+        // evaluate as lvalue
+        // just evaluate the inner one and leave the address in r0
+        compileExpr(expr.expr)
+    }
+    is Expr.VariableAccess -> asm {
+        val location = lookupVariable(expr.variableName)
+            ?: error("ICE: can not find variable")
+        this += Instr.Add(
+            a = location.reg,
+            b = Source.Immediate(location.offset),
+            c = Register.R0
+        )
+    }
     else -> error("$expr is not an lvalue")
 }
-private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
-    is Expr.Block -> list {
-        this += expr.contents.map { compileExpr(it) }.flatten()
+
+
+
+
+private fun Scope.compileExpr(expr: Expr): Assembly = when(expr) {
+
+
+    is Expr.Block -> asm {
+
+        val variableDefinitions = expr.fold({
+            if(it == expr) null else when(it) {
+                is Expr.VariableDefinition -> listOf(it)
+                is Expr.Block -> emptyList()
+                else -> null
+            }
+        }, { a, b -> a + b }, emptyList())
+
+        var topLocation = this@compileExpr.freeVariableSpace
+
+        val variables = variableDefinitions.map { variable ->
+            val location = ValueLocation.MemoryOffset(topLocation, Register.RD)
+            topLocation -= sizeOfType(variable.type)
+
+            variable.variableName to location
+        }.toMap()
+        println("compiling block, variables: $variables")
+        val newScope = Scope(
+            variables = variables,
+            ast = ast,
+            currentFunctionName = currentFunctionName,
+            parent = this@compileExpr,
+            freeVariableSpace = topLocation
+        )
+
+        this += expr.contents.map { newScope.compileExpr(it) }.flatten()
         this += Instr.Label(this@compileExpr.currentFunctionName + "_" + expr.label + "_end_")
+
+
+
     }
-    is Expr.Loop -> list {
+
+
+
+    is Expr.Loop -> asm {
         this += Instr.Label(this@compileExpr.currentFunctionName + "_" + expr.block.label + "_start_")
         this += expr.block.contents.map { compileExpr(it) }.flatten()
         this += Instr.Mov(Source.LabelValue(this@compileExpr.currentFunctionName + "_" + expr.block.label + "_start_"), Register.RF)
         this += Instr.Label(this@compileExpr.currentFunctionName + "_" + expr.block.label + "_end_")
     }
-    is Expr.CharLiteral -> listOf(Instr.Mov(Source.Immediate(expr.char.code), Register.R0))
+    is Expr.CharLiteral -> asm(Instr.Mov(Source.Immediate(expr.char.code), Register.R0))
     is Expr.FunctionCall -> {
         if(expr.header.name == "cast") {
-            // then it's a noop
+            // then it's a noop, we'll assume it's a valid cast. You made the cast, after all
             // TODO add checking to make sure this isn't invalid
             compileExpr(expr.arguments[0])
-        } else list {
+        } else asm {
             for ((argExpr, arg) in expr.arguments.zip(expr.header.arguments)) {
                 this += compileExpr(argExpr)// puts result into r0
                 when {
@@ -215,7 +225,7 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
             }
 
             this += Instr.Call(Source.LabelValue(expr.header.name))
-            // puts the returned value in r0 so we're all good
+            // puts the returned value in r0, so we're all good
             this += Instr.Add(
                 Source.Immediate(expr.header.arguments.map { sizeOfType(it.type) }.sum()),
                 Register.RE,
@@ -224,13 +234,13 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         }
     }
 
-    is Expr.Break -> list {
+    is Expr.Break -> asm {
         // evaluate and put result in r0, then jump to the end of the block we're in
         this += compileExpr(expr.value)
         this += Instr.Mov(Source.LabelValue(this@compileExpr.currentFunctionName + "_" + expr.label + "_end_"), Register.RF)
     }
     is Expr.BinaryOp -> when(expr.op) {
-        Operator.ADD -> list {
+        Operator.ADD -> asm {
             if ((expr.left.type !is Type.Builtin.INT && expr.left.type !is Type.Pointer) || (expr.right.type !is Type.Builtin.INT && expr.right.type !is Type.Pointer)) {
                 TODO("only Int arithmetic supported rn")
             }
@@ -259,7 +269,7 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
             this += Instr.PopW(Register.R1)
             this += Instr.Add(Register.R0, Register.R1, Register.R0)
         }
-        Operator.EQUALS -> list {
+        Operator.EQUALS -> asm {
             // 0 = false
             // 1 = true
             // this is BITWISE COMPARISON
@@ -284,22 +294,68 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
                 }
             }  else TODO("can't support types that big yet lol")
         }
+        Operator.GREATER_THAN -> asm {
+            if(expr.left.type !is Type.Builtin.INT || expr.right.type !is Type.Builtin.INT) {
+                TODO("not supported yet")
+            }
+            this += compileExpr(expr.left)
+            this += Instr.PushW(Register.R0)
+            this += compileExpr(expr.right)
+            this += Instr.Mov(Register.R0, Register.R2)
+            this += Instr.PopW(Register.R1)
+            // left > right
+            // r1 > r2
+            this += Instr.Mov(Source.Immediate(0), Register.R0)
+            this += Instr.IfGS(Register.R1, Register.R2)
+            this += Instr.Mov(Source.Immediate(1), Register.R0)
+        }
+        Operator.DIVIDE -> asm {
+            if(expr.left.type !is Type.Builtin.INT || expr.right.type !is Type.Builtin.INT) {
+                TODO("not supported yet")
+            }
+            this += compileExpr(expr.left)
+            this += Instr.PushW(Register.R0)
+            this += compileExpr(expr.right)
+            this += Instr.PopW(Register.R1)
+            // r1 / r0
+            this += Instr.IDiv(Register.R1, Register.R0, Register.R0, Register.R1)
+        }
+        Operator.REM -> asm {
+            if(expr.left.type !is Type.Builtin.INT || expr.right.type !is Type.Builtin.INT) {
+                TODO("not supported yet")
+            }
+            this += compileExpr(expr.left)
+            this += Instr.PushW(Register.R0)
+            this += compileExpr(expr.right)
+            this += Instr.PopW(Register.R1)
+            // r1 / r0
+            this += Instr.IDiv(Register.R1, Register.R0, Register.R1, Register.R0)
+        }
+        Operator.SUB -> asm {
+            if(expr.left.type !is Type.Builtin.INT || expr.right.type !is Type.Builtin.INT) {
+                TODO("not supported yet")
+            }
+            this += compileExpr(expr.left)
+            this += Instr.PushW(Register.R0)
+            this += compileExpr(expr.right)
+            this += Instr.PopW(Register.R1)
+            // r1 - r0 -> r0
+            this += Instr.Sub(Register.R1, Register.R0, Register.R0)
+        }
         else -> TODO("operator ${expr.op} not supported yet")
     }
-    is Expr.VariableAccess -> list {
-        val pos = this@compileExpr.variables[expr.variableName] ?: error("ICE: Variable not in scope in backend ${expr.variableName}")
-        if(pos is ValueLocation.MemoryOffset) {
-            this += Instr.OLoadW(pos.reg, Source.Immediate(pos.offset), reg = Register.R0)
-        } else if(pos is ValueLocation.Register){
-            this += Instr.Mov(pos.reg, Register.R0)
-        }
+    is Expr.VariableAccess -> asm {
+        val pos = lookupVariable(expr.variableName) ?: error("ICE: Variable not in scope in backend ${expr.variableName}")
+        this += Instr.OLoadW(pos.reg, Source.Immediate(pos.offset), reg = Register.R0)
     }
 
     is Expr.NumericalLiteral -> {
         if(expr.t != Type.Builtin.INT) TODO("only supporting ints right now lol")
-        listOf(Instr.Mov(Source.Immediate(expr.i), Register.R0))
+        asm {
+            this += Instr.Mov(Source.Immediate(expr.i), Register.R0)
+        }
     }
-    is Expr.Deref -> list {
+    is Expr.Deref -> asm {
         this += compileExpr(expr.expr)
         when (val size = sizeOfType(expr.type)) {
             1 -> {
@@ -311,30 +367,23 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
             else -> error("Can't load type of $size bytes")
         }
     }
-
-    is Expr.Assignment -> list {
+    is Expr.Assignment -> asm {
         if(expr.left is Expr.VariableAccess) {
             // if it's in a register, we need to explicitly handle this case
-            val location = this@compileExpr.variables[expr.left.variableName] ?: error("ICE: variable not defined in scope, but got to tvm backend")
-            when (location) {
-                is ValueLocation.Register -> {
-                    // then it's literally just the register
-                    // if it's not, then we need to evalLValue it
-                    this += compileExpr(expr.right)
-                    when(sizeOfType(expr.left.type)) {
-                        1 -> this += Instr.StoreB(Register.R0, location.reg)
-                        2 -> this += Instr.StoreW(Register.R0, location.reg)
-                        else -> error("more than two bytes, am helpless")
-                    }
-                }
-                is ValueLocation.MemoryOffset -> {
-                    this += compileExpr(expr.right)
-                    when(sizeOfType(expr.left.type)) {
-                        1 -> this += Instr.OStoreB(value = Register.R0, addr = location.reg, offset = Source.Immediate(location.offset))
-                        2 -> this += Instr.OStoreW(value = Register.R0, addr = location.reg, offset = Source.Immediate(location.offset))
-                        else -> error("more than two bytes, am helpless")
-                    }
-                }
+            val location = lookupVariable(expr.left.variableName) ?: error("ICE: variable not defined in scope, but got to tvm backend")
+            this += compileExpr(expr.right)
+            when (sizeOfType(expr.left.type)) {
+                1 -> this += Instr.OStoreB(
+                    value = Register.R0,
+                    addr = location.reg,
+                    offset = Source.Immediate(location.offset)
+                )
+                2 -> this += Instr.OStoreW(
+                    value = Register.R0,
+                    addr = location.reg,
+                    offset = Source.Immediate(location.offset)
+                )
+                else -> error("more than two bytes, am helpless")
             }
         } else {
             this += compileLValueExpr(expr.left)
@@ -349,15 +398,11 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         }
 
     }
-    /* 10-1*/
-    is Expr.StringLiteral -> list {
-        // mark TODO This is terrible, fix strings
-        for((i, char) in expr.content.withIndex()) {
-            this += Instr.StoreB(addr = Source.Immediate(i + 0x5000), value = Source.Immediate(char.code))
-        }
-        this += Instr.Mov(Source.Immediate(0x5000), Register.R0)
+    is Expr.StringLiteral -> asm {
+        val strAddr = stringIDFor(expr.content)
+        this += Instr.Mov(Source.LabelValue("str_${strAddr}_"), Register.R0)
     }
-    is Expr.If -> list {
+    is Expr.If -> asm {
         val elseLabel = genRandomString() + "_else_"
         val endLabel = genRandomString() + "_end_"
 
@@ -367,32 +412,40 @@ private fun Scope.compileExpr(expr: Expr): List<Instr> = when(expr) {
         // if ra is 0, then we want to jump
         this += Instr.IfEq(Source.Immediate(0), Register.R0)
         this += Instr.Mov(Source.LabelValue(elseLabel), Register.RF) // jump to else: if it's false
-        this += compileExpr(expr.ifBlock) // otherwise evaluate the if block
+        this += compileExpr(expr.ifBlock) // otherwise, evaluate the if block
 
         this += Instr.Mov(Source.LabelValue(endLabel), Register.RF) // skip the else block
 
         this += Instr.Label(elseLabel) // else:
-        this += expr.elseBlock?.let { compileExpr(it) } ?: emptyList() // if there's no else blokc, do nothing
+        this += expr.elseBlock?.let { compileExpr(it) } ?: asm{} // if there's no else block, do nothing
 
         this += Instr.Label(endLabel)
+    }
+    is Expr.Unit -> asm {}
+    is Expr.Ref -> asm {
+        // &x
+        //
+        this += compileLValueExpr(expr.expr)
+    }
+    is Expr.VariableDefinition -> asm {
+        val location = lookupVariable(expr.variableName) ?: error("ICE can't find variable ${expr.variableName}")
+        this += compileExpr(expr.value)
+        // value is in r0
+        this += when(sizeOfType(expr.type)) {
+            1 -> Instr.OStoreB(Register.R0, addr = location.reg, offset = Source.Immediate(location.offset))
+            2 -> Instr.OStoreW(Register.R0, addr = location.reg, offset = Source.Immediate(location.offset))
+            else -> error("structs? bad")
+        }
     }
 
     // we'll get to these
     is Expr.Continue -> TODO()
     is Expr.MemberAccess -> TODO()
-    is Expr.Ref -> TODO()
     is Expr.StructDefinition -> TODO()
-    is Expr.Unit -> emptyList() // do nothing lol
-    is Expr.VariableDefinition -> TODO()
-}
-
-fun genRandomString(): String {
-    return (0..10).joinToString("") { ('a'..'z').random().toString() }
 }
 
 
-private fun <T> list(block: MutableList<T>.() -> Unit): List<T> {
-    val l = mutableListOf<T>()
-    block(l)
-    return l
-}
+
+
+
+

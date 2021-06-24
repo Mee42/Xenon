@@ -36,8 +36,9 @@ fun Expr.isLValue(): Boolean = when(this) {
 }
 
 enum class Operator(val op: String){
-    ADD("+"), SUB("-"), TIMES("*"), DIVIDE("/"),
-    EQUALS("=="),NOT_EQUALS("!=")
+    ADD("+"), SUB("-"), TIMES("*"), DIVIDE("/"), REM("%"),
+    EQUALS("=="),NOT_EQUALS("!="),
+    GREATER_THAN(">"),
 }
 
 
@@ -184,14 +185,14 @@ fun returnType(op: Operator, leftType: Type, rightType: Type): Type = when(op){
             error("no code has been written that handles the $leftType * $rightType case")
         }
     }
-    Operator.DIVIDE -> {
+    Operator.DIVIDE, Operator.REM -> {
         if(leftType is Type.BuiltinInteger && rightType is Type.BuiltinInteger) {
             integralArithmetic("divide", leftType, rightType)
         } else {
             error("no code has been written that handles the $leftType * $rightType case")
         }
     }
-    Operator.EQUALS, Operator.NOT_EQUALS -> {
+    Operator.EQUALS, Operator.NOT_EQUALS, Operator.GREATER_THAN -> {
         if(leftType != rightType) {
             error("Can't compare types $leftType and $rightType for equality")
         } else {
@@ -251,7 +252,7 @@ private fun Env.compileExpr(expr: UntypedExpr, scope: Scope): Expr = when(expr){
         }
         Expr.NumericalLiteral(n.dropLast(dropCount).toInt(), type)
     }
-    is UntypedExpr.Return -> Expr.Break(compileExpr(expr.expr, scope), scope.functionReturnLabel)
+    is UntypedExpr.Return -> Expr.Break(if(expr.expr != null) compileExpr(expr.expr, scope) else Expr.Unit(), scope.functionReturnLabel)
     is UntypedExpr.StringLiteral -> Expr.StringLiteral(expr.content)
     is UntypedExpr.StructDefinition -> {
         val structType = this.typeMapper(expr.type ?: error("type assumption for struct definitions not supported yet"))

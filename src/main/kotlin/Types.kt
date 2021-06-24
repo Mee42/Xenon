@@ -28,7 +28,7 @@ sealed class Type {
         object INT: BuiltinInteger(true, 2, "Int")
         object UINT: BuiltinInteger(false, 2, "UInt")
 
-        object LONG: BuiltinInteger(true, 4, "LOng")
+        object LONG: BuiltinInteger(true, 4, "Long")
         object ULONG: BuiltinInteger(false, 4, "ULong")
 
         object BOOL: Builtin(1, "Bool")

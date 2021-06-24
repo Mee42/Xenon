@@ -185,7 +185,7 @@ private val prefixParselets: List<PrefixParselet> by lazy {
         PrefixOpParselet("&"),
         object: PrefixParselet { // return expression
             override fun parse(tokens: ArrayDeque<Token>, token: Token) =
-                UntypedExpr.Return(parseExprPratt(tokens, Precedence.BOTTOM))
+                UntypedExpr.Return(if(tokens.isEmpty()) null else parseExprPratt(tokens, Precedence.BOTTOM))
 
             override fun accepts(token: Token): Boolean {
                 return token == Token.Keyword(Keyword.RETURN)
@@ -364,6 +364,9 @@ private val infixParselets: List<InfixParselet> = listOf(
     BinaryOpParselet("+", Precedence.ADD_AND_SUB),
     BinaryOpParselet("-", Precedence.ADD_AND_SUB),
     BinaryOpParselet("*", Precedence.MULT_AND_DIV), // TODO ADD THE REST
+    BinaryOpParselet("%", Precedence.MULT_AND_DIV),
+    BinaryOpParselet("/", Precedence.MULT_AND_DIV),
+    BinaryOpParselet(">", Precedence.COMPARISON),
     BinaryOpParselet("==", Precedence.EQUALS),
 
     object: InfixParselet {

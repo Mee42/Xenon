@@ -27,7 +27,7 @@ fun main() {
     val endResult = tvmBackend.process(typedAST)
 
     var s = ""
-    for(instr in endResult)  s += "" + instr + "\n"
+    for(instr in endResult.instrs)  s += "" + instr + "\n"
     println(s)
     Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(s), null)
     Thread.sleep(10000)
@@ -88,7 +88,7 @@ fun UntypedExpr.str(indent: String, needsToIndent: Boolean = false, needParens: 
         is UntypedExpr.FunctionCall -> i + functionName + "(" + arguments.joinToString(", ") { it.str(indent) } + ")"
         is UntypedExpr.NumericalLiteral -> i + number
         is UntypedExpr.PrefixOp -> i + paren(op + right.str(indent, needParens = true) )
-        is UntypedExpr.Return -> i + "return " + expr.str(indent)
+        is UntypedExpr.Return -> i + "return " + expr?.str(indent)
         is UntypedExpr.StringLiteral -> i + '"' + content + '"'
         is UntypedExpr.VariableAccess -> i + variableName
         is UntypedExpr.VariableDefinition -> i + paren((if(isConst) "val " else "var ") + (type?.str()?.let { "$it " } ?: "") + variableName + (value?.str(indent)?.let { " = $it" } ?: ""))

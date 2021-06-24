@@ -30,7 +30,7 @@ sealed interface UntypedExpr: TWAble {
     data class PrefixOp(val right: UntypedExpr, val op: String): UntypedExpr
     data class BinaryOp(val left: UntypedExpr, val right: UntypedExpr, val op: String): UntypedExpr
     data class VariableAccess(val variableName: VariableIdentifier): UntypedExpr
-    data class Return(val expr: UntypedExpr): UntypedExpr
+    data class Return(val expr: UntypedExpr?): UntypedExpr
     data class NumericalLiteral(val number: String): UntypedExpr
     data class StringLiteral(val content: String): UntypedExpr
     data class CharLiteral(val char: Char): UntypedExpr
