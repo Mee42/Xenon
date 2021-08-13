@@ -2,6 +2,9 @@
 
 This language will eventually have multiple backends, the two primary ones being [TVM](https://github.com/adrian154/tvm) and x86_64.
 
+This is a rewrite of an old Xenon compiler, which targetted x86_64 machine code dircetly. 
+
+
 Immediate TODOs:
 - [x] Lexer
 - [x] Grammar 
@@ -15,7 +18,7 @@ Immediate TODOs:
 
 Xenon 1.1 features:
 - [ ] Arrays
-- [ ] bidirectional type assumption
+- [ ] Bidirectional type assumption
 
 Xenon >1.1 features:
 - [ ] Closures/Lambdas
