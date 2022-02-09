@@ -2,7 +2,7 @@
 
 This language will eventually have multiple backends, the two primary ones being [TVM](https://github.com/adrian154/tvm) and x86_64.
 
-This is a rewrite of an old Xenon compiler, which targetted x86_64 machine code dircetly. 
+This is a rewrite of an old Xenon compiler, which targetted x86_64 machine code dircetly. See the `old` branch for more detail on that.
 
 
 Immediate TODOs:
